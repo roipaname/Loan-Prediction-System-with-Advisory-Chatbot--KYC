@@ -10,7 +10,7 @@ xgboost
 lightgbm
 
 # ── Explainability ──────────────────────────────────────────
-shap
+shap<0.46.0
 matplotlib
 seaborn
 
