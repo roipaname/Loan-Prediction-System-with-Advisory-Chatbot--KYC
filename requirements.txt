@@ -9,8 +9,8 @@ imbalanced-learn
 xgboost
 lightgbm
 
-# ── Explainability ──────────────────────────────────────────
-shap<0.46.0
+# ── Explainability (LIME replaces SHAP — no numba/llvmlite) ─
+lime
 matplotlib
 seaborn
 
