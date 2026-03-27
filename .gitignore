@@ -1,16 +1,162 @@
-# Ignore node modules
-node_modules/
+# =========================
+# 🧠 Python Core
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
 
-# Ignore environment variables
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# =========================
+# 🧪 Virtual Environments
+# =========================
+venv/
+env/
+ENV/
+.venv/
+.python-version
+
+# =========================
+# 🔐 Environment Variables
+# =========================
 .env
+.env.*
+*.env
 
-# Ignore logs
+# =========================
+# 📓 Jupyter Notebooks
+# =========================
+.ipynb_checkpoints/
+
+# Optional: ignore all notebooks (uncomment if needed)
+# *.ipynb
+
+# =========================
+# 📊 Data (CRITICAL for AI)
+# =========================
+data/
+datasets/
+*.csv
+*.tsv
+*.jsonl
+
+# But allow small example data
+!data/sample/
+!data/example.csv
+
+# =========================
+# 🤖 Model Files (VERY IMPORTANT)
+# =========================
+models/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.h5
+*.onnx
+*.safetensors
+
+# HuggingFace cache
+.cache/huggingface/
+transformers_cache/
+
+# =========================
+# 📈 Experiment Tracking
+# =========================
+runs/
+wandb/
+mlruns/
+tensorboard/
+logs/
+
+# =========================
+# 📦 Dependency / Build Tools
+# =========================
+pip-wheel-metadata/
+*.lock
+
+# If using poetry or pipenv (optional)
+# poetry.lock
+# Pipfile.lock
+
+# =========================
+# 🧹 Logs & Debug
+# =========================
 *.log
+logs/
+debug.log
 
-# Ignore OS files
+# =========================
+# 🖥️ IDE / Editor
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# 🍎 OS Files
+# =========================
 .DS_Store
 Thumbs.db
 
-# Ignore build folders
-dist/
-build/
+# =========================
+# 🚀 Deployment / Misc
+# =========================
+*.bak
+*.tmp
+*.temp
+
+# =========================
+# 🔑 Secrets / Credentials
+# =========================
+secrets/
+credentials.json
+*.pem
+*.key
+
+# OpenAI / API keys often stored here
+config.yaml
+config.json
+
+# =========================
+# 📡 API / Cache
+# =========================
+.cache/
+*.cache
+
+# =========================
+# 🧬 Custom Project (PhishNet / LLM)
+# =========================
+raw_data/
+processed_data/
+synthetic_data/
+adversarial_data/
+
+outputs/
+predictions/
+results/
+
+# Tokenizers / vocab files (optional to ignore)
+tokenizer.json
+vocab.json
+merges.txt
