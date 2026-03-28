@@ -188,3 +188,5 @@ logger.add(
     retention=LOG_RETENTION,
     format=LOG_FORMAT
 )
+
+logger.success("Logging configured successfully. Logs will be saved to: {}", LOG_FILE)
