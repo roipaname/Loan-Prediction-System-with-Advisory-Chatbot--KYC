@@ -68,9 +68,116 @@ DB_ECHO = os.getenv('DB_ECHO', 'False').lower() == 'true'
 APP_ENV="testing"
 DB_URL=os.getenv("DATABASE_URL",f"{DB_TYPE}://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
 
+# ============================================================================
+# CLASSIFIER CONFIGURATION
+# ============================================================================
+
+AVAILABLE_CLASSIFIERS=[ 'logistic_regression','naive_bayes','svm','random_forest','gradient_boosting','xgboost','lightgbm','catboost']
+
+# Model versioning
+MODEL_VERSION = os.getenv('MODEL_VERSION', 'v1.0.0')
+
+# Default classifier
+DEFAULT_CLASSIFIER = os.getenv('DEFAULT_CLASSIFIERS', 'random_forest')
+
+# Training parameters
+TEST_SIZE = float(os.getenv('TEST_SIZE', '0.2'))
+RANDOM_STATE = int(os.getenv('RANDOM_STATE', '42'))
+CV_FOLDS = int(os.getenv('CV_FOLDS', '5'))
+# Minimum confidence threshold for classification
+MIN_CONFIDENCE_THRESHOLD = float(os.getenv('MIN_CONFIDENCE_THRESHOLD', '0.5'))
+
+
+# Similarity threshold for near-duplicate detection
+SIMILARITY_THRESHOLD = float(os.getenv('SIMILARITY_THRESHOLD', '0.85'))
+
+# Hash algorithm for content hashing
+HASH_ALGORITHM = os.getenv('HASH_ALGORITHM', 'sha256')
+
+# =========================================================
+# RAG (RETRIEVAL AUGMENTED GENERATION)
+# =========================================================
+
+
+RAG_CONFIG = {
+    "enabled": True,
+    "embedding_model": "text-embedding-3-large",
+    "vector_store": "chromadb",
+    "chunk_size": 512,
+    "chunk_overlap": 64,
+    "top_k": 5,
+}
+# =========================================================
+# HUGGING FACE AI ADVISOR
+# =========================================================
+
+HF_TOKEN=os.getenv("HF_API_TOKEN")
+HF_MODEL="mistralai/Mistral-7B-Instruct-v0.2"
 
 
 
+# =========================================================
+# OUTPUT REGULARIZATION
+# =========================================================
+
+OUTPUT_RULES = {
+    "allow_probabilities": True,
+    "confidence_threshold": 0.65,
+    "disallowed_phrases": [
+        "guaranteed",
+        "100% sure",
+        "no risk"
+    ],
+    "explanation_style": "business_friendly",  # technical | exec | business
+}
+
+
+# =========================================================
+# DECISION INTELLIGENCE
+# =========================================================
+
+DECISION_POLICY = {
+    "high_risk_threshold": 0.8,
+    "medium_risk_threshold": 0.5,
+    "actions": {
+        "high": "immediate_retention_offer",
+        "medium": "engagement_campaign",
+        "low": "monitor_only"
+    }
+}
+
+
+
+# =========================================================
+# API SETTINGS
+# =========================================================
+
+API_CONFIG = {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "debug": True,
+}
+
+def get_model_config() -> Dict:
+    """Get model configuration as dictionary."""
+    return {
+        'classifier': DEFAULT_CLASSIFIER,
+        'test_size': TEST_SIZE,
+        'random_state': RANDOM_STATE,
+        'cv_folds': CV_FOLDS,
+        'model_version': MODEL_VERSION,
+        'min_confidence': MIN_CONFIDENCE_THRESHOLD
+    }
+
+
+__all__ = [
+    'BASE_DIR',
+    'DATA_DIR',
+    'MODELS_DIR',
+    'LOGS_DIR',
+    'get_model_config'
+    'KAGGLE_TRAIN_DATASET'
+]
 from loguru import logger
 
 logger.remove()
