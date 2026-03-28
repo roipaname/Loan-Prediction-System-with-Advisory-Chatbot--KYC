@@ -47,8 +47,26 @@ LOG_FORMAT = (
     "<level>{message}</level>"
 )
 
+# ============================================================================
+# DATABASE CONFIGURATION
+# ============================================================================
 
+DB_NAME=os.getenv("DB_NAME","customer_loan")
+if not DB_NAME:
+    logger.warning("DB_NAME is not set. Using default value 'customer_loan'.")
+    DB_NAME = "customer_loan"
+DB_USER=os.getenv("DB_USER")
+DB_PASSWORD=os.getenv("DB_PASSWORD")
+DB_HOST=os.getenv("DB_HOST","localhost")
+DB_PORT=os.getenv("DB_PORT","5432")
+DB_TYPE=os.getenv("DB_TYPE","postgres")
 
+DB_POOL_SIZE = int(os.getenv('DB_POOL_SIZE', '10'))
+DB_MAX_OVERFLOW = int(os.getenv('DB_MAX_OVERFLOW', '20'))
+DB_POOL_TIMEOUT = int(os.getenv('DB_POOL_TIMEOUT', '30'))
+DB_ECHO = os.getenv('DB_ECHO', 'False').lower() == 'true'
+APP_ENV="testing"
+DB_URL=os.getenv("DATABASE_URL",f"{DB_TYPE}://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
 
 
 
