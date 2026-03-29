@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from helpers.file_loader import load_pandas_data
 from database.schemas import IncomeBucketEnum
-from config.settings import RAW_DATA_DIR
+from config.settings import RAW_DATA_DIR,PROCESSED_DATA_DIR
 
 CSV_DATA=RAW_DATA_DIR /'loan_data.csv'
 
@@ -23,7 +23,7 @@ def feature_engineering(df:pd.DataFrame)->pd.DataFrame:
     ).astype(int)
 
     # --- Income Buckets ---
-    df['income_bucket']=pd.qcut(df['persone_income'],q=len(IncomeBucketEnum),labels=[str(member.value) for member in IncomeBucketEnum])
+    df['income_bucket']=pd.qcut(df['person_income'],q=len(IncomeBucketEnum),labels=[str(member.value) for member in IncomeBucketEnum])
 
     # --- Employment Stability ---
     df['employment_stability'] = np.where(df['person_emp_exp'] > 5, 'stable', 'unstable')
@@ -49,4 +49,6 @@ def feature_engineering(df:pd.DataFrame)->pd.DataFrame:
 if __name__=="__main__":
     df=load_pandas_data(CSV_DATA)
     print(len(df))
+    processed_df=feature_engineering(df)
+    processed_df.to_csv(PROCESSED_DATA_DIR/'processed.csv')
 

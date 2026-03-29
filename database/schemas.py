@@ -28,3 +28,23 @@ class GenderEnum(enum.Enum):
     male="male"
     female="female"
     other="other"
+class HomeOwnerShipEnum(enum.Enum):
+    mortgage="mortgage"
+    other="other"
+    own="own"
+    rent="rent"
+class PersonEducationEnum(enum.Enum):
+    high_school="high_school"
+    bachelor="bachelor"
+    diploma="diploma"
+    associate="associate"
+    master="master"
+    doctor="doctor"
+class LoanIntentEnum(enum.Enum):
+    debt_consolidation="debt consolidation"
+    education="education"
+    home_improvement="home improvement"
+    medical="medical"
+    personal="personal"
+    venture="venture"
+    other="otheer"
