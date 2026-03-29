@@ -48,3 +48,11 @@ class LoanIntentEnum(enum.Enum):
     personal="personal"
     venture="venture"
     other="otheer"
+
+class CreditScoreTierEnum(enum.Enum):
+    poor="poor"
+    fair="fair"
+    good="good"
+    very_good="very good"
+    exceptional="exceptional"
+
