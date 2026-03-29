@@ -9,3 +9,7 @@ from datetime import datetime
 
 from loguru import logger
 from typing import List,Dict
+
+Base=declarative_base()
+
+
