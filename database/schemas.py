@@ -18,12 +18,13 @@ Base=declarative_base()
 # ==============================================================================
 
 
-def IncomeBucketEnum(enum.Enum):
+class IncomeBucketEnum(enum.Enum):
     LOW = "low"
     MEDIUM = "medium"
     LOW_MEDIUM = "mid_low"
     HIGH = "high"
-def GenderEnum(enum.Enum):
+
+class GenderEnum(enum.Enum):
     male="male"
     female="female"
     other="other"
