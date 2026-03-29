@@ -2,7 +2,9 @@ import pandas as pd
 import numpy as np
 from helpers.file_loader import load_pandas_data
 from database.schemas import IncomeBucketEnum
+from config.settings import RAW_DATA_DIR
 
+CSV_DATA=RAW_DATA_DIR /'loan_data.csv'
 
 def feature_engineering(df:pd.DataFrame)->pd.DataFrame:
     df=df.copy()
@@ -44,5 +46,7 @@ def feature_engineering(df:pd.DataFrame)->pd.DataFrame:
     return df
 
 
-
+if __name__=="__main__":
+    df=load_pandas_data(CSV_DATA)
+    print(len(df))
 
