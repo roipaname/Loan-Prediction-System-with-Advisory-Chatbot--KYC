@@ -95,5 +95,11 @@ class PredictionOutcomeEnum(enum.Enum):
  
 class RetrieverTypeEnum(enum.Enum):
     tfidf = "tfidf"
-    vector = "vector"          
+    vector = "vector"    
+
+
+# ==============================================================================
+# Core Tables
+# ==============================================================================
+      
  
