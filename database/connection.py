@@ -7,4 +7,4 @@ from config.settings import DB_URL
 
 class Connection:
     def __int__(self):
-        pass
+        self.db_url=DB_URL
