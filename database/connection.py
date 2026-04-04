@@ -1,5 +1,6 @@
-from sqlalchemy import create_engine, session,sessionmaker
-
+from sqlalchemy import create_engine
+from sqlalchemy.orm import session, sessionmaker
+from contextlib import contextmanager
 from loguru import logger
 
 from config.settings import DB_URL
@@ -8,4 +9,7 @@ from config.settings import DB_URL
 class Connection:
     def __int__(self):
         self.db_url=DB_URL
-        self.db=self.init_db()
+        self.engine=self.init_db()
+        self.local_session=None
+
+    def init_db(self):
