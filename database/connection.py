@@ -9,8 +9,9 @@ from config.settings import DB_URL,DB_POOL_SIZE,DB_POOL_TIMEOUT,DB_MAX_OVERFLOW,
 class Connection:
     def __init__(self):
         self.db_url=DB_URL
-        self.engine=self.init_db()
         self.local_session=None
+        self.engine=self.init_db()
+        
 
     def init_db(self):
         """Create a database connection and session."""
@@ -64,12 +65,12 @@ if __name__ == "__main__":
             applicant = LoanApplicant(
                 person_age=30,
                 person_gender="male",
-                person_education="Bachelor",
+                person_education="bachelor",
                 person_income=50000,
                 person_emp_exp=5,
-                person_home_ownership="RENT",
+                person_home_ownership="rent",
                 loan_amnt=10000,
-                loan_intent="PERSONAL",
+                loan_intent="personal",
                 loan_grade="B",
                 loan_int_rate=12.5,
                 loan_percent_income=0.2,
