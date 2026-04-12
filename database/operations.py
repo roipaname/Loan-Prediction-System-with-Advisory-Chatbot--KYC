@@ -82,6 +82,7 @@ def get_champion_model() -> Optional[MLModel]:
 
 # ==============================================================================
 # PREDICTIONS
+
 # ==============================================================================
 
 def create_prediction(data: Dict[str, Any]) -> ModelPrediction:
