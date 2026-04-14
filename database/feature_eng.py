@@ -27,7 +27,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
+from config.settings import PROCESSED_DATA_DIR,RAW_DATA_DIR
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -103,7 +103,7 @@ RISK_WEIGHTS = {
 # Step 1 — Load & validate raw data
 # ---------------------------------------------------------------------------
 
-def load_raw(path: str | Path) -> pd.DataFrame:
+def load_raw(path: str | Path=RAW_DATA_DIR/'loan_data.csv') -> pd.DataFrame:
     """Load the raw CSV and do light validation."""
     path = Path(path)
     if not path.exists():
