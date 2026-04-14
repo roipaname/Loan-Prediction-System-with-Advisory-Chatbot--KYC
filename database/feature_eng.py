@@ -463,8 +463,8 @@ ENGINEERED_FEATURE_COLS = [
 
 
 def run_pipeline(
-    input_path:  str | Path = "data/raw/loan_data.csv",
-    output_path: str | Path = "data/processed/loan_features.csv",
+    input_path:  str | Path=RAW_DATA_DIR/'loan_data.csv',
+    output_path: str | Path = PROCESSED_DATA_DIR /"loan_features.csv",
     version:     str        = PIPELINE_VERSION,
 ) -> pd.DataFrame:
     """
