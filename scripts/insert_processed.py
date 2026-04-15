@@ -46,12 +46,12 @@ from database.schemas import (
     EngineeredFeatures,
     PersonEducationEnum,
 )
-
+from config.settings import PROCESSED_DATA_DIR
 # ---------------------------------------------------------------------------
 # Defaults
 # ---------------------------------------------------------------------------
 
-DEFAULT_INPUT      = "data/processed/loan_features.csv"
+DEFAULT_INPUT      = PROCESSED_DATA_DIR/"loan_features.csv"
 DEFAULT_CHUNK_SIZE = 500
 
 # ---------------------------------------------------------------------------
