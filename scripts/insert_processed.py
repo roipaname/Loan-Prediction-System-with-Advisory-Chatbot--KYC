@@ -281,7 +281,7 @@ def insert_chunk(
 # ---------------------------------------------------------------------------
 
 def run_insert(
-    input_path:   str  = DEFAULT_INPUT,
+    input_path:   str | Path  = DEFAULT_INPUT,
     chunk_size:   int  = DEFAULT_CHUNK_SIZE,
     source_split: str  = "processed",
     dry_run:      bool = False,
