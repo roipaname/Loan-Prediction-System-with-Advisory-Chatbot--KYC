@@ -1,30 +1,8 @@
-"""
-logistic_regression.py
-======================
-Custom optimised Logistic Regression for the Loan Prediction System.
 
-Implements mini-batch SGD with:
-  - L1 / L2 / ElasticNet regularisation
-  - Adam adaptive learning-rate (momentum + RMSProp)
-  - Early stopping on a held-out validation split
-  - Class-weight balancing (handles the typical loan approval imbalance)
-  - Full sklearn-compatible API (fit / predict / predict_proba / score)
-
-Usage
------
-    from src.classifier.logistic_regression import CustomLogisticRegression
-
-    clf = CustomLogisticRegression(
-        lr=0.01, max_iter=500, penalty="elasticnet", l1_ratio=0.5,
-        early_stopping=True, class_weight="balanced"
-    )
-    clf.fit(X_train, y_train)
-    proba = clf.predict_proba(X_test)
-"""
 
 from __future__ import annotations
 
-import logging
+from loguru import logger as log
 from typing import Literal, Optional
 
 import numpy as np
@@ -32,7 +10,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
-log = logging.getLogger(__name__)
+from config.settings import LOG_LEVEL
 
 
 # ---------------------------------------------------------------------------
