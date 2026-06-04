@@ -118,6 +118,7 @@ INCOME_BUCKET_MAP: dict[str, IncomeBucketEnum] = {
 
 
 def _dec(val, precision: int = 6) -> Optional[Decimal]:
+    
     """Convert a value to Decimal, returning None for NaN/None."""
     if val is None:
         return None
