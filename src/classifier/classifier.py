@@ -577,3 +577,157 @@ class LoanClassifier:
             f"fitted={self._is_fitted}, "
             f"calibrate={self.calibrate})"
         )
+
+
+
+if __name__ == "__main__":
+    from pathlib import Path
+
+    from sklearn.datasets import load_breast_cancer
+    from sklearn.model_selection import train_test_split
+
+    print("=" * 80)
+    print("LOAN CLASSIFIER TEST SUITE")
+    print("=" * 80)
+
+    # ------------------------------------------------------------------
+    # Dataset
+    # ------------------------------------------------------------------
+    data = load_breast_cancer()
+
+    X = data.data
+    y = data.target
+    feature_names = data.feature_names.tolist()
+
+    print(f"\nDataset: Breast Cancer")
+    print(f"Samples : {X.shape[0]}")
+    print(f"Features: {X.shape[1]}")
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.2,
+        stratify=y,
+        random_state=42
+    )
+
+    algorithms = [
+        "random_forest",
+        "naive_bayes",
+        "logistic_regression",
+    ]
+
+    try:
+        import xgboost
+        algorithms.append("xgboost")
+    except ImportError:
+        print("\nXGBoost not installed - skipping")
+
+    # ------------------------------------------------------------------
+    # Test All Algorithms
+    # ------------------------------------------------------------------
+    for algorithm in algorithms:
+
+        print("\n" + "=" * 80)
+        print(f"TESTING: {algorithm.upper()}")
+        print("=" * 80)
+
+        classifier = LoanClassifier(
+            algorithm=algorithm,
+            scale_features=algorithm in [
+                "logistic_regression",
+                "naive_bayes",
+            ],
+            calibrate=False,
+            random_state=42,
+        )
+
+        # --------------------------------------------------------------
+        # Train
+        # --------------------------------------------------------------
+        print("\nTraining...")
+        classifier.fit(
+            X_train,
+            y_train,
+            feature_names=feature_names
+        )
+
+        print("\nSummary:")
+        print(classifier.summary())
+
+        # --------------------------------------------------------------
+        # Evaluation
+        # --------------------------------------------------------------
+        results = classifier.evaluate(X_test, y_test)
+
+        print("\nEvaluation Results")
+        print("-" * 50)
+        print(f"Accuracy     : {results['accuracy']:.4f}")
+        print(f"ROC AUC      : {results['roc_auc']:.4f}")
+        print(f"F1 Macro     : {results['f1_macro']:.4f}")
+        print(f"F1 Weighted  : {results['f1_weighted']:.4f}")
+
+        print("\nConfusion Matrix")
+        print(results["confusion_matrix"])
+
+        print("\nClassification Report")
+        print(results["classification_report"])
+
+        # --------------------------------------------------------------
+        # Cross Validation
+        # --------------------------------------------------------------
+        print("\nCross Validation")
+
+        cv_results = classifier.cross_validate(
+            X_train,
+            y_train,
+            cv=5,
+            scoring="roc_auc"
+        )
+
+        print(
+            f"ROC-AUC: "
+            f"{cv_results['mean']:.4f} ± "
+            f"{cv_results['std']:.4f}"
+        )
+
+        # --------------------------------------------------------------
+        # Feature Importance
+        # --------------------------------------------------------------
+        importance_df = classifier.get_feature_importance()
+
+        if importance_df is not None:
+            print("\nTop 10 Features")
+            print(
+                importance_df.head(10).to_string(index=False)
+            )
+
+        # --------------------------------------------------------------
+        # Save / Load Test
+        # --------------------------------------------------------------
+        print("\nTesting Save / Load")
+
+        save_path = Path(
+            f"models/test_{algorithm}"
+        )
+
+        classifier.save(save_path)
+
+        loaded = LoanClassifier.load(save_path)
+
+        original_preds = classifier.predict(X_test)
+        loaded_preds = loaded.predict(X_test)
+
+        identical = np.array_equal(
+            original_preds,
+            loaded_preds
+        )
+
+        print(
+            f"Predictions identical after load: "
+            f"{identical}"
+        )
+
+    print("\n" + "=" * 80)
+    print("ALL TESTS COMPLETED")
+    print("=" * 80)
