@@ -9,5 +9,6 @@ dependencies = [
     "loguru>=0.7.3",
     "pandas>=2.3.3",
     "scikit-learn>=1.7.2",
+    "scipy>=1.15.3",
     "xgboost>=3.2.0",
 ]

@@ -16,6 +16,7 @@ seaborn
 
 # ── Fairness ────────────────────────────────────────────────
 fairlearn
+loguru
 
 # ── HuggingFace / LLM ───────────────────────────────────────
 transformers
