@@ -181,6 +181,7 @@ __all__ = [
 from loguru import logger
 
 logger.remove()
+
 logger.add(
     LOG_FILE,
     level=LOG_LEVEL,
