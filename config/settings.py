@@ -87,6 +87,14 @@ CV_FOLDS = int(os.getenv('CV_FOLDS', '5'))
 # Minimum confidence threshold for classification
 MIN_CONFIDENCE_THRESHOLD = float(os.getenv('MIN_CONFIDENCE_THRESHOLD', '0.5'))
 
+# Path to the best model artefact — written by scripts/train_model.py after
+# each training run and read by the app at inference time
+BEST_MODEL_PATH = MODELS_DIR / 'best_model.joblib'
+
+# Metric used to crown the best model during training.
+# Any metric returned by src.classifier.evaluate.evaluate_classifier() is valid.
+MODEL_SELECTION_METRIC = os.getenv('MODEL_SELECTION_METRIC', 'roc_auc')
+
 
 # Similarity threshold for near-duplicate detection
 SIMILARITY_THRESHOLD = float(os.getenv('SIMILARITY_THRESHOLD', '0.85'))
@@ -175,8 +183,9 @@ __all__ = [
     'DATA_DIR',
     'MODELS_DIR',
     'LOGS_DIR',
-    'get_model_config'
-    'KAGGLE_TRAIN_DATASET'
+    'BEST_MODEL_PATH',
+    'MODEL_SELECTION_METRIC',
+    'get_model_config',
 ]
 from loguru import logger
 
