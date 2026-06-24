@@ -36,7 +36,7 @@ from __future__ import annotations
 import argparse
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib
 matplotlib.use("Agg")   # non-interactive backend — safe for headless environments
@@ -206,8 +206,6 @@ def compute_metrics(
     """
     Compute all comparison metrics and return a summary DataFrame.
     """
-    from typing import Optional
-
     tfidf_scores = _extract_scores(tfidf_results)
     tfidf_ids    = _extract_ids(tfidf_results)
 
@@ -689,7 +687,6 @@ def main() -> None:
     # ------------------------------------------------------------------
     # Metrics
     # ------------------------------------------------------------------
-    from typing import Optional
     metrics = compute_metrics(tfidf_results, tfidf_latencies, chroma_results, chroma_latencies)
 
     # ------------------------------------------------------------------
