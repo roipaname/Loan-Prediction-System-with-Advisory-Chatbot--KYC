@@ -10,17 +10,19 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from styles.theme import inject, sidebar_logo, GOLD, GOLD_LT, GOLD_DK
 from styles.theme import TEXT, TEXT2, TEXT3, CARD, CARD2, BORDER, SUCCESS, DANGER
+from styles.icons import icon as _icon
 import uuid
 from datetime import datetime
 
-st.set_page_config(page_title="LAPAS – Application", page_icon="📝", layout="wide")
+st.set_page_config(page_title="LAPAS – Application", page_icon="L", layout="wide")
 inject()
 sidebar_logo()
 
 # ── Page header ───────────────────────────────────────────────────────────────
 st.markdown(f"""
 <div style="margin-bottom:1.4rem;">
-  <div style="font-size:1.6rem;font-weight:800;color:{TEXT};">📝 Loan Application</div>
+  <div style="display:flex;align-items:center;gap:0.6rem;font-size:1.6rem;font-weight:800;color:{TEXT};">
+    {_icon('document-plus',28,GOLD)} Loan Application</div>
   <div style="font-size:0.88rem;color:{TEXT2};margin-top:3px;">
     Submit a new application for ML-based credit assessment and AI advisory generation.</div>
 </div>
@@ -37,8 +39,8 @@ if st.session_state.get("last_submitted_id"):
 
     st.markdown(f"""
     <div class="submit-success">
-      <div style="font-size:2rem;margin-bottom:0.5rem;">
-        {'✅' if outcome == 'approved' else '❌'}</div>
+      <div style="margin-bottom:0.7rem;">
+        {f"{_icon('check-circle',40,SUCCESS)}" if outcome == 'approved' else f"{_icon('x-circle',40,DANGER)}"}</div>
       <div style="font-size:1.1rem;font-weight:700;color:{TEXT};margin-bottom:0.3rem;">
         Application Submitted Successfully</div>
       <div style="margin-bottom:0.8rem;">{badge}</div>
@@ -55,7 +57,7 @@ if st.session_state.get("last_submitted_id"):
     st.markdown("<br>", unsafe_allow_html=True)
     col_a, col_b = st.columns([1, 3])
     with col_a:
-        if st.button("➕  New Application", use_container_width=True):
+        if st.button("New Application", use_container_width=True):
             st.session_state.pop("last_submitted_id", None)
             st.rerun()
     st.stop()
@@ -64,7 +66,7 @@ if st.session_state.get("last_submitted_id"):
 with st.form("loan_form", clear_on_submit=False):
 
     # ── Section 1: Demographics ────────────────────────────────────────────
-    st.markdown('<div class="form-section">👤 Demographic Profile</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="form-section">{_icon("user",14,GOLD_LT)} Demographic Profile</div>', unsafe_allow_html=True)
     d1, d2, d3 = st.columns(3)
     with d1:
         age = st.number_input("Age", min_value=18, max_value=80, value=35, step=1,
@@ -77,12 +79,12 @@ with st.form("loan_form", clear_on_submit=False):
             ["High School", "Diploma", "Associate", "Bachelor", "Master", "Doctor"])
 
     # ── Section 2: Financial Profile ───────────────────────────────────────
-    st.markdown('<div class="form-section">💰 Financial Profile</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="form-section">{_icon("banknotes",14,GOLD_LT)} Financial Profile</div>', unsafe_allow_html=True)
     f1, f2, f3 = st.columns(3)
     with f1:
-        income = st.number_input("Annual Income ($)", min_value=5_000, max_value=500_000,
+        income = st.number_input("Annual Income (R)", min_value=5_000, max_value=500_000,
                                  value=55_000, step=1_000, format="%d",
-                                 help="Total gross annual income in USD.")
+                                 help="Total gross annual income in ZAR.")
     with f2:
         emp_exp = st.number_input("Employment Experience (years)", min_value=0, max_value=50,
                                   value=5, step=1)
@@ -92,10 +94,10 @@ with st.form("loan_form", clear_on_submit=False):
             format_func=lambda x: {"RENT":"Renting","MORTGAGE":"Mortgage","OWN":"Own","OTHER":"Other"}[x])
 
     # ── Section 3: Loan Details ────────────────────────────────────────────
-    st.markdown('<div class="form-section">🏦 Loan Details</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="form-section">{_icon("building-library",14,GOLD_LT)} Loan Details</div>', unsafe_allow_html=True)
     l1, l2, l3 = st.columns(3)
     with l1:
-        loan_amnt = st.number_input("Loan Amount ($)", min_value=500, max_value=100_000,
+        loan_amnt = st.number_input("Loan Amount (R)", min_value=500, max_value=100_000,
                                     value=12_000, step=500, format="%d")
     with l2:
         loan_intent = st.selectbox("Loan Purpose",
@@ -135,12 +137,12 @@ with st.form("loan_form", clear_on_submit=False):
           <div style="font-size:1.4rem;font-weight:700;color:{GOLD_LT};margin-top:2px;">
             {loan_pct*100:.1f}%</div>
           <div style="font-size:0.72rem;color:{TEXT3};">
-            {'⚠ Above 30% threshold' if loan_pct > 0.30 else '✓ Within acceptable range'}</div>
+            {'Above 30% threshold' if loan_pct > 0.30 else 'Within acceptable range'}</div>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    submitted = st.form_submit_button("⚡  Submit Application for Assessment",
+    submitted = st.form_submit_button("Submit Application for Assessment",
                                       use_container_width=False)
 
 # ── Process submission ────────────────────────────────────────────────────────
@@ -189,8 +191,9 @@ if submitted:
 st.sidebar.markdown(f"""
 <div style="background:rgba(196,168,122,0.07);border:1px solid rgba(196,168,122,0.15);
 border-radius:10px;padding:0.9rem;margin-top:1rem;">
-  <div style="font-size:0.75rem;color:{GOLD_LT};font-weight:600;margin-bottom:0.4rem;">
-    💡 Application Tips</div>
+  <div style="font-size:0.75rem;color:{GOLD_LT};font-weight:600;margin-bottom:0.4rem;
+    display:flex;align-items:center;gap:0.4rem;">
+    {_icon('light-bulb',13,GOLD_LT)} Application Tips</div>
   <div style="font-size:0.73rem;color:{TEXT2};line-height:1.6;">
     • Credit score &gt; 670 significantly improves approval odds<br>
     • Keep loan-to-income ratio below 30%<br>

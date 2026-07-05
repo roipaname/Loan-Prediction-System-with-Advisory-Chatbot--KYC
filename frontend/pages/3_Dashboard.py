@@ -15,22 +15,30 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from styles.theme import (inject, sidebar_logo, apply_chart_layout,
                            GOLD, GOLD_LT, GOLD_DK, SILVER, TEXT, TEXT2, TEXT3,
                            CARD, CARD2, BORDER, SUCCESS, SUCCESS_LT, DANGER, DANGER_LT)
+from styles.icons import icon as _icon
 from utils.mock_data import get_data, intent_label
 
-st.set_page_config(page_title="LAPAS – Dashboard", page_icon="📊", layout="wide")
+st.set_page_config(page_title="LAPAS – Dashboard", page_icon="L", layout="wide")
 inject()
 sidebar_logo()
 
 df = get_data()
 
 # ── Pre-compute ────────────────────────────────────────────────────────────────
-total        = len(df)
-approved     = (df['predicted_outcome'] == 'approved').sum()
-apr_pct      = approved / total * 100
-avg_score    = df['credit_score'].mean()
-avg_loan     = df['loan_amnt'].mean()
-avg_rate     = df['loan_int_rate'].mean()
-high_risk    = (df['risk_tier'] == 'High').sum()
+total           = len(df)
+approved        = (df['predicted_outcome'] == 'approved').sum()
+rejected        = total - approved
+apr_pct         = approved / total * 100
+rej_pct         = rejected / total * 100
+avg_score       = df['credit_score'].mean()
+avg_loan        = df['loan_amnt'].mean()
+avg_rate        = df['loan_int_rate'].mean()
+high_risk       = (df['risk_tier'] == 'High').sum()
+total_portfolio = df['loan_amnt'].sum()
+avg_prob        = df['approval_probability'].mean() * 100
+prior_defaults  = df['previous_loan_defaults_on_file'].sum()
+thin_credit     = df['thin_credit_file'].sum()
+avg_emp_yrs     = df['person_emp_exp'].mean()
 
 df['month']  = df['created_at'].dt.to_period('M').astype(str)
 df['approved_flag'] = (df['predicted_outcome'] == 'approved').astype(int)
@@ -44,29 +52,39 @@ COLORS_OUTCOME = {'approved': SUCCESS, 'rejected': DANGER}
 
 # ── Page header ────────────────────────────────────────────────────────────────
 st.markdown(f"""
-<div style="margin-bottom:1.2rem;">
-  <span style="font-size:1.5rem;font-weight:800;color:{TEXT};">📊 Analytics Dashboard</span>
-  <span style="font-size:0.84rem;color:{TEXT3};margin-left:0.8rem;">{total:,} applications</span>
+<div style="margin-bottom:1.2rem;display:flex;align-items:center;gap:0.7rem;">
+  {_icon('chart-bar-square',26,GOLD)}
+  <span style="font-size:1.5rem;font-weight:800;color:{TEXT};">Analytics Dashboard</span>
+  <span style="font-size:0.84rem;color:{TEXT3};margin-left:0.4rem;">{total:,} applications</span>
 </div>
 """, unsafe_allow_html=True)
 
-# ── Top KPI strip ──────────────────────────────────────────────────────────────
+# ── Top KPI strip – row 1 ──────────────────────────────────────────────────────
 k1,k2,k3,k4,k5,k6 = st.columns(6)
 k1.metric("Total Applications",  f"{total:,}")
 k2.metric("Approval Rate",       f"{apr_pct:.1f}%",   delta="+2.3%")
 k3.metric("Avg Credit Score",    f"{avg_score:.0f}",  delta="+12")
-k4.metric("Avg Loan Amount",     f"${avg_loan:,.0f}")
+k4.metric("Avg Loan Amount",     f"R{avg_loan:,.0f}")
 k5.metric("Avg Interest Rate",   f"{avg_rate:.1f}%")
 k6.metric("High Risk Cases",     f"{high_risk}",      delta="-3", delta_color="inverse")
+
+# ── Top KPI strip – row 2 ──────────────────────────────────────────────────────
+k7,k8,k9,k10,k11,k12 = st.columns(6)
+k7.metric("Total Portfolio",        f"R{total_portfolio/1_000_000:.1f}M")
+k8.metric("Rejection Rate",         f"{rej_pct:.1f}%",      delta="-2.3%", delta_color="inverse")
+k9.metric("Avg Approval Prob.",     f"{avg_prob:.1f}%")
+k10.metric("Prior Defaults",        f"{int(prior_defaults)}",  delta=f"+{int(prior_defaults*0.05):.0f}", delta_color="inverse")
+k11.metric("Thin Credit Files",     f"{int(thin_credit)}")
+k12.metric("Avg Employment Yrs",    f"{avg_emp_yrs:.1f} yrs")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📈 Overview & Approval",
-    "👤 Demographics",
-    "💰 Financial & Risk",
-    "🤖 Model Intelligence",
+    "Overview & Approval",
+    "Demographics",
+    "Financial & Risk",
+    "Model Intelligence",
 ])
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -277,7 +295,7 @@ with tab2:
                      hover_data={'credit_score': True, 'loan_amnt': ':,.0f',
                                  'risk_tier': True},
                      labels={'person_emp_exp': 'Employment Experience (years)',
-                             'person_income': 'Annual Income ($)',
+                             'person_income': 'Annual Income (R)',
                              'predicted_outcome': 'Outcome'})
     apply_chart_layout(fig, "Employment Experience vs Annual Income (coloured by Outcome)", 340)
     fig.update_traces(marker=dict(size=7, line=dict(width=0)))
@@ -347,7 +365,7 @@ with tab3:
                          color_discrete_map={'Low': SUCCESS, 'Medium': GOLD, 'High': DANGER},
                          opacity=0.65, size_max=16,
                          labels={'credit_score': 'Credit Score',
-                                 'loan_amnt': 'Loan Amount ($)',
+                                 'loan_amnt': 'Loan Amount (R)',
                                  'risk_tier': 'Risk Tier'})
         apply_chart_layout(fig, "Credit Score vs Loan Amount (bubble = approval prob.)", 300)
         fig.update_traces(marker=dict(line=dict(width=0)))
@@ -394,8 +412,8 @@ with tab3:
     fig = go.Figure(go.Heatmap(
         z=pivot.values, x=list(pivot.columns), y=list(pivot.index),
         colorscale=[[0, CARD2], [0.5, GOLD_DK], [1, GOLD_LT]],
-        hovertemplate="Grade %{x} / Income: %{y}<br>Avg Loan: $%{z:,.0f}<extra></extra>",
-        colorbar=dict(title="Avg Loan ($)", tickfont=dict(color=TEXT2), titlefont=dict(color=TEXT2)),
+        hovertemplate="Grade %{x} / Income: %{y}<br>Avg Loan: R%{z:,.0f}<extra></extra>",
+        colorbar=dict(title="Avg Loan (R)", tickfont=dict(color=TEXT2), titlefont=dict(color=TEXT2)),
     ))
     apply_chart_layout(fig, "Avg Loan Amount Heatmap: Income Bucket × Loan Grade", 300)
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})

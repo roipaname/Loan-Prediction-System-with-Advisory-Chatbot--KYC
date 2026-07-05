@@ -196,8 +196,6 @@ class TFIDFStore:
 
         all_docs, all_metas, all_dists, all_ids = [], [], [], []
         for row in sims:
-            # argsort descending — top-k most similar
-            top_k = int(np.argsort(row)[::-1][:n_results])
             top_indices = np.argsort(row)[::-1][:n_results]
             top_scores  = row[top_indices]
 

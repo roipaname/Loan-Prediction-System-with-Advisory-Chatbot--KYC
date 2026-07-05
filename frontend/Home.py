@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from styles.theme import inject, sidebar_logo, GOLD, GOLD_LT, GOLD_DK, TEXT, TEXT2, TEXT3
 from styles.theme import CARD, CARD2, BORDER, SUCCESS, DANGER, SILVER, apply_chart_layout
+from styles.icons import icon as _icon
 from utils.mock_data import get_data, intent_icon, intent_label
 
 st.set_page_config(
@@ -42,10 +43,10 @@ st.markdown(f"""
     </div>
   </div>
   <div style="margin-top:1.2rem; display:flex; gap:0.8rem; flex-wrap:wrap;">
-    <span class="stat-pill">🤖 ML Ensemble Active</span>
-    <span class="stat-pill">📄 RAG Explanation Ready</span>
-    <span class="stat-pill">⚖️ Fairness Monitoring On</span>
-    <span class="stat-pill">🗄️ {total} Applications Loaded</span>
+    <span class="stat-pill">{_icon('cpu-chip',14,GOLD_LT)} ML Ensemble Active</span>
+    <span class="stat-pill">{_icon('document-text',14,GOLD_LT)} RAG Explanation Ready</span>
+    <span class="stat-pill">{_icon('scale',14,GOLD_LT)} Fairness Monitoring On</span>
+    <span class="stat-pill">{_icon('server-stack',14,GOLD_LT)} {total} Applications Loaded</span>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -55,7 +56,7 @@ c1, c2, c3, c4, c5 = st.columns(5)
 c1.metric("Total Applications",  f"{total:,}")
 c2.metric("Approval Rate",       f"{approval_pct:.1f}%",   delta="+2.3% vs last month")
 c3.metric("Avg Credit Score",    f"{avg_score}",            delta="+12 pts")
-c4.metric("Avg Loan Amount",     f"${avg_loan:,.0f}")
+c4.metric("Avg Loan Amount",     f"R{avg_loan:,.0f}")
 c5.metric("High Risk Flagged",   f"{high_risk_n}",          delta=f"-{3} this week", delta_color="inverse")
 
 st.markdown('<div class="gold-divider"></div>', unsafe_allow_html=True)
@@ -64,7 +65,7 @@ st.markdown('<div class="gold-divider"></div>', unsafe_allow_html=True)
 left, right = st.columns([1.4, 1], gap="large")
 
 with left:
-    st.markdown('<div class="section-header">📋 Recent Applications</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-header">{_icon("clipboard-list",15,GOLD_LT)} Recent Applications</div>', unsafe_allow_html=True)
     recent = df.sort_values('created_at', ascending=False).head(10)
     for _, row in recent.iterrows():
         approved_flag = row['predicted_outcome'] == 'approved'
@@ -84,7 +85,7 @@ with left:
               {badge}
             </div>
             <div style="font-size:0.74rem;color:{TEXT3};margin-top:2px;">
-              {icon} {label_text} &nbsp;·&nbsp; ${row['loan_amnt']:,.0f}
+              {icon} {label_text} &nbsp;·&nbsp; R{row['loan_amnt']:,.0f}
               &nbsp;·&nbsp; Score {row['credit_score']}
               &nbsp;·&nbsp; {row['created_at'].strftime('%d %b %Y')}
             </div>
@@ -96,7 +97,7 @@ with left:
         """, unsafe_allow_html=True)
 
 with right:
-    st.markdown('<div class="section-header">📊 Quick Insights</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-header">{_icon("chart-bar",15,GOLD_LT)} Quick Insights</div>', unsafe_allow_html=True)
 
     # Approval donut
     fig_donut = go.Figure(go.Pie(
@@ -137,29 +138,25 @@ with right:
 st.markdown('<div class="gold-divider"></div>', unsafe_allow_html=True)
 
 # ── Quick Navigation Cards ────────────────────────────────────────────────────
-st.markdown('<div class="section-header">🧭 Navigate</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="section-header">{_icon("map",15,GOLD_LT)} Navigate</div>', unsafe_allow_html=True)
 
 nav_items = [
-    ("📝", "Customer Application",
-     "Submit a new loan application with full demographic and financial details.",
-     "pages/1_Customer_Application.py"),
-    ("👥", "Customers",
-     "Browse all applications as cards. Filter by score, risk tier, grade and more.",
-     "pages/2_Customers.py"),
-    ("📊", "Dashboard",
-     "18+ interactive charts covering approvals, credit risk, income, and fairness.",
-     "pages/3_Dashboard.py"),
-    ("🤖", "AI Advisory",
-     "Select any applicant to view SHAP attribution, policy-grounded explanation, and export a PDF report.",
-     "pages/4_AI_Advisory.py"),
+    (_icon("document-plus", 28, GOLD), "Customer Application",
+     "Submit a new loan application with full demographic and financial details."),
+    (_icon("user-group", 28, GOLD), "Customers",
+     "Browse all applications as cards. Filter by score, risk tier, grade and more."),
+    (_icon("chart-bar-square", 28, GOLD), "Dashboard",
+     "18+ interactive charts covering approvals, credit risk, income, and fairness."),
+    (_icon("cpu-chip", 28, GOLD), "AI Advisory",
+     "Select any applicant to view SHAP attribution, policy-grounded explanation, and export a PDF report."),
 ]
 
 cols = st.columns(4, gap="small")
-for col, (icon, title, desc, _) in zip(cols, nav_items):
+for col, (nav_icon, title, desc) in zip(cols, nav_items):
     with col:
         st.markdown(f"""
         <div class="info-panel" style="height:160px; position:relative;">
-          <div style="font-size:1.8rem; margin-bottom:0.5rem;">{icon}</div>
+          <div style="margin-bottom:0.6rem;">{nav_icon}</div>
           <div style="font-size:0.95rem; font-weight:700; color:{TEXT}; margin-bottom:0.4rem;">
             {title}</div>
           <div style="font-size:0.78rem; color:{TEXT2}; line-height:1.5;">{desc}</div>

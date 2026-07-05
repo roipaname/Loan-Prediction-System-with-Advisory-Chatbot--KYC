@@ -1,8 +1,13 @@
 """
 scripts/tfidf_chroma.py
 ========================
-Benchmarks the custom TF-IDF vector store against ChromaDB on the
-loan strategy document corpus and produces comparison metrics and charts.
+Benchmarks the custom TF-IDF vector store against the Dense Embedding vector
+store (sentence-transformers + cosine similarity) on the loan strategy document
+corpus and produces comparison metrics and charts.
+
+Both stores expose identical ChromaDB-compatible interfaces so swapping them is
+trivial. TF-IDF is sparse and lightning fast; Dense uses all-MiniLM-L6-v2 for
+semantic retrieval at the cost of higher per-query latency.
 
 Experiment design
 -----------------
@@ -15,7 +20,6 @@ comparison uses self-supervised and system-level metrics:
                                  for each query, across the two methods
   4. Rank Correlation          — Spearman rho between the ordered result lists
   5. Throughput                — queries per second for each method
-  6. Vocabulary/Coverage       — TF-IDF vocab size vs ChromaDB embedding dims
 
 Outputs
 -------
@@ -23,13 +27,14 @@ Outputs
   reports/tfidf_chroma_score_distribution.png
   reports/tfidf_chroma_overlap_heatmap.png
   reports/tfidf_chroma_rank_correlation.png
-  Console table with all numeric metrics
+  reports/tfidf_chroma_summary_dashboard.png
+  reports/tfidf_chroma_metrics.csv
 
 Usage
 -----
-    uv run python -m scripts.tfidf_chroma
-    uv run python -m scripts.tfidf_chroma --docs data/loan_strategy_docs --n-results 5
-    uv run python -m scripts.tfidf_chroma --no-chroma   # TF-IDF only (faster)
+    .venv/bin/python -m scripts.tfidf_chroma
+    .venv/bin/python -m scripts.tfidf_chroma --docs data/loan_strategy_docs --n-results 5
+    .venv/bin/python -m scripts.tfidf_chroma --no-dense   # TF-IDF only (faster)
 """
 from __future__ import annotations
 
@@ -89,10 +94,12 @@ _TFIDF_PERSIST = BASE_DIR / "data" / "tfidf_index"
 
 PALETTE = {
     "tfidf":  "#4C72B0",   # muted blue
-    "chroma": "#DD8452",   # muted orange
+    "chroma": "#DD8452",   # muted orange — used for Dense Embeddings store
     "grid":   "#CCCCCC",
     "bg":     "#FAFAFA",
 }
+# Human-readable label for the dense embeddings store
+_DENSE_LABEL = "Dense Embeddings"
 
 plt.rcParams.update({
     "figure.facecolor":  PALETTE["bg"],
@@ -120,11 +127,11 @@ def _build_tfidf(docs_dir: Path) -> TFIDFStore:
     return store
 
 
-def _build_chroma(docs_dir: Path) -> Any:
+def _build_dense(docs_dir: Path) -> Any:
     from src.ai_advisor.vector_store import VectorStore
-    log.info("Building ChromaDB store from %s …", docs_dir)
+    log.info("Building Dense Embedding store from %s …", docs_dir)
     store = VectorStore.from_directory(docs_dir, force_reindex=False)
-    log.info("ChromaDB store ready: %d docs", store.count())
+    log.info("Dense Embedding store ready: %d docs", store.count())
     return store
 
 
@@ -240,7 +247,7 @@ def compute_metrics(
 
 def _save_latency_chart(metrics: pd.DataFrame, out_dir: Path) -> Path:
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    fig.suptitle("Retrieval Latency Comparison: TF-IDF vs ChromaDB", fontsize=13, fontweight="bold")
+    fig.suptitle("Retrieval Latency Comparison: TF-IDF vs Dense Embeddings", fontsize=13, fontweight="bold")
 
     has_chroma = "chroma_latency_ms" in metrics.columns
 
@@ -251,7 +258,7 @@ def _save_latency_chart(metrics: pd.DataFrame, out_dir: Path) -> Path:
             marker="o", ms=4, lw=1.5, label="TF-IDF")
     if has_chroma:
         ax.plot(xs, metrics["chroma_latency_ms"], color=PALETTE["chroma"],
-                marker="s", ms=4, lw=1.5, label="ChromaDB")
+                marker="s", ms=4, lw=1.5, label=_DENSE_LABEL)
     ax.set_xlabel("Query Index")
     ax.set_ylabel("Latency (ms)")
     ax.set_title("Per-Query Latency")
@@ -265,7 +272,7 @@ def _save_latency_chart(metrics: pd.DataFrame, out_dir: Path) -> Path:
     stds   = [metrics["tfidf_latency_ms"].std()]
     colors = [PALETTE["tfidf"]]
     if has_chroma:
-        labels.append("ChromaDB")
+        labels.append(_DENSE_LABEL)
         means.append(metrics["chroma_latency_ms"].mean())
         stds.append(metrics["chroma_latency_ms"].std())
         colors.append(PALETTE["chroma"])
@@ -288,7 +295,7 @@ def _save_latency_chart(metrics: pd.DataFrame, out_dir: Path) -> Path:
 
 def _save_score_distribution(metrics: pd.DataFrame, out_dir: Path) -> Path:
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    fig.suptitle("Similarity Score Distribution: TF-IDF vs ChromaDB", fontsize=13, fontweight="bold")
+    fig.suptitle("Similarity Score Distribution: TF-IDF vs Dense Embeddings", fontsize=13, fontweight="bold")
 
     has_chroma = "chroma_mean_score" in metrics.columns
 
@@ -298,7 +305,7 @@ def _save_score_distribution(metrics: pd.DataFrame, out_dir: Path) -> Path:
     ax.hist(data_t, bins=12, color=PALETTE["tfidf"], alpha=0.7, label="TF-IDF")
     if has_chroma:
         data_c = metrics["chroma_top1_score"].dropna()
-        ax.hist(data_c, bins=12, color=PALETTE["chroma"], alpha=0.7, label="ChromaDB")
+        ax.hist(data_c, bins=12, color=PALETTE["chroma"], alpha=0.7, label=_DENSE_LABEL)
     ax.set_xlabel("Top-1 Similarity Score (higher = better match)")
     ax.set_ylabel("Number of Queries")
     ax.set_title("Top-1 Similarity Score Distribution")
@@ -312,7 +319,7 @@ def _save_score_distribution(metrics: pd.DataFrame, out_dir: Path) -> Path:
     plot_colors = [PALETTE["tfidf"]]
     if has_chroma:
         plot_data.append(metrics["chroma_mean_score"].dropna().values)
-        plot_labels.append("ChromaDB")
+        plot_labels.append(_DENSE_LABEL)
         plot_colors.append(PALETTE["chroma"])
 
     bp = ax2.boxplot(plot_data, labels=plot_labels, patch_artist=True, notch=False,
@@ -350,7 +357,7 @@ def _save_overlap_heatmap(metrics: pd.DataFrame, out_dir: Path) -> Path:
     im = ax.imshow(grid, cmap="YlOrRd", vmin=0, vmax=1, aspect="auto")
     plt.colorbar(im, ax=ax, label="Jaccard Overlap (0 = no overlap, 1 = identical)")
     ax.set_title(
-        "Result-Set Overlap per Query: TF-IDF vs ChromaDB (Jaccard Similarity)",
+        "Result-Set Overlap per Query: TF-IDF vs Dense Embeddings (Jaccard Similarity)",
         fontsize=12, fontweight="bold",
     )
     ax.set_xlabel("Query Column")
@@ -379,7 +386,7 @@ def _save_rank_correlation(metrics: pd.DataFrame, out_dir: Path) -> Path:
     rho_vals = metrics["spearman_rho"].dropna().values
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    fig.suptitle("Rank Correlation: TF-IDF vs ChromaDB (Spearman Rho)", fontsize=13, fontweight="bold")
+    fig.suptitle("Rank Correlation: TF-IDF vs Dense Embeddings (Spearman Rho)", fontsize=13, fontweight="bold")
 
     # Left: histogram of rho values
     ax = axes[0]
@@ -421,7 +428,7 @@ def _save_summary_dashboard(metrics: pd.DataFrame, out_dir: Path) -> Path:
 
     fig = plt.figure(figsize=(14, 8))
     fig.suptitle(
-        "LAPAS Retrieval System Benchmark: TF-IDF vs ChromaDB",
+        "LAPAS Retrieval System Benchmark: TF-IDF vs Dense Embeddings",
         fontsize=14, fontweight="bold", y=0.98,
     )
     gs = gridspec.GridSpec(2, 3, figure=fig, hspace=0.45, wspace=0.4)
@@ -432,7 +439,7 @@ def _save_summary_dashboard(metrics: pd.DataFrame, out_dir: Path) -> Path:
     means  = [metrics["tfidf_latency_ms"].mean()]
     colors = [PALETTE["tfidf"]]
     if has_chroma:
-        labels.append("ChromaDB")
+        labels.append(_DENSE_LABEL)
         means.append(metrics["chroma_latency_ms"].mean())
         colors.append(PALETTE["chroma"])
     bars = ax1.bar(labels, means, color=colors, width=0.5)
@@ -449,7 +456,7 @@ def _save_summary_dashboard(metrics: pd.DataFrame, out_dir: Path) -> Path:
              alpha=0.7, label="TF-IDF")
     if has_chroma:
         ax2.hist(metrics["chroma_top1_score"].dropna(), bins=8, color=PALETTE["chroma"],
-                 alpha=0.7, label="ChromaDB")
+                 alpha=0.7, label=_DENSE_LABEL)
     ax2.set_title("Top-1 Score Distribution", fontsize=10)
     ax2.set_xlabel("Similarity")
     ax2.legend(fontsize=7)
@@ -464,7 +471,7 @@ def _save_summary_dashboard(metrics: pd.DataFrame, out_dir: Path) -> Path:
     tp_colors         = [PALETTE["tfidf"]]
     if has_chroma:
         tps_chroma = n_q / (metrics["chroma_latency_ms"].sum() / 1000)
-        throughput_labels.append("ChromaDB")
+        throughput_labels.append(_DENSE_LABEL)
         throughput_vals.append(tps_chroma)
         tp_colors.append(PALETTE["chroma"])
     bars3 = ax3.bar(throughput_labels, throughput_vals, color=tp_colors, width=0.5)
@@ -484,7 +491,7 @@ def _save_summary_dashboard(metrics: pd.DataFrame, out_dir: Path) -> Path:
                     label=f"Mean {jacc.mean():.2f}")
         ax4.legend(fontsize=7)
     else:
-        ax4.text(0.5, 0.5, "ChromaDB\nnot available", ha="center", va="center",
+        ax4.text(0.5, 0.5, "Dense Store\nnot available", ha="center", va="center",
                  transform=ax4.transAxes, fontsize=9, color="grey")
     ax4.set_title("Result-Set Jaccard Overlap", fontsize=10)
     ax4.set_xlabel("Jaccard Similarity")
@@ -501,7 +508,7 @@ def _save_summary_dashboard(metrics: pd.DataFrame, out_dir: Path) -> Path:
         ax5.legend(fontsize=7)
         ax5.set_xlim(-1.1, 1.1)
     else:
-        ax5.text(0.5, 0.5, "ChromaDB\nnot available", ha="center", va="center",
+        ax5.text(0.5, 0.5, "Dense Store\nnot available", ha="center", va="center",
                  transform=ax5.transAxes, fontsize=9, color="grey")
     ax5.set_title("Rank Correlation (Spearman)", fontsize=10)
     ax5.set_xlabel("Spearman Rho")
@@ -530,7 +537,7 @@ def _save_summary_dashboard(metrics: pd.DataFrame, out_dir: Path) -> Path:
             f"{metrics['chroma_mean_score'].mean():.4f}",
         ]
         table_data.append(chroma_row)
-        row_labels.append("ChromaDB")
+        row_labels.append(_DENSE_LABEL)
 
     tbl = ax6.table(
         cellText=table_data,
@@ -567,17 +574,17 @@ def _print_summary(metrics: pd.DataFrame, tfidf_store: Any, chroma_store: Any) -
     sep = "=" * 68
 
     print(f"\n{sep}")
-    print("  LAPAS RETRIEVAL BENCHMARK: TF-IDF vs ChromaDB")
+    print("  LAPAS RETRIEVAL BENCHMARK: TF-IDF vs Dense Embeddings")
     print(sep)
-    print(f"  Queries run   : {len(metrics)}")
-    print(f"  Corpus size   : {tfidf_store.count()} chunks")
-    print(f"  TF-IDF vocab  : {tfidf_store.vocab_size()} terms")
+    print(f"  Queries run       : {len(metrics)}")
+    print(f"  Corpus size       : {tfidf_store.count()} chunks")
+    print(f"  TF-IDF vocab      : {tfidf_store.vocab_size()} terms")
     if chroma_store is not None:
-        print(f"  ChromaDB docs : {chroma_store.count()}")
+        print(f"  Dense store docs  : {chroma_store.count()}")
     print()
 
     print("  LATENCY (ms)")
-    print(f"  {'Metric':<30} {'TF-IDF':>10}  {'ChromaDB':>10}")
+    print(f"  {'Metric':<30} {'TF-IDF':>10}  {'Dense':>10}")
     print("  " + "-" * 55)
     for label, tkey, ckey in [
         ("Mean",   "tfidf_latency_ms", "chroma_latency_ms"),
@@ -600,7 +607,7 @@ def _print_summary(metrics: pd.DataFrame, tfidf_store: Any, chroma_store: Any) -
 
     print()
     print("  SIMILARITY SCORES (higher = better match)")
-    print(f"  {'Metric':<30} {'TF-IDF':>10}  {'ChromaDB':>10}")
+    print(f"  {'Metric':<30} {'TF-IDF':>10}  {'Dense':>10}")
     print("  " + "-" * 55)
     for label, tkey, ckey in [
         ("Mean Top-1 Score",   "tfidf_top1_score",  "chroma_top1_score"),
@@ -647,8 +654,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Top-k documents to retrieve per query (default: %(default)s).",
     )
     p.add_argument(
-        "--no-chroma", action="store_true",
-        help="Skip ChromaDB and benchmark TF-IDF only (faster, no embeddings).",
+        "--no-dense", action="store_true",
+        help="Skip Dense Embedding store and benchmark TF-IDF only (faster, no model loading).",
     )
     p.add_argument(
         "--output-dir", default=str(_REPORTS_DIR), metavar="DIR",
@@ -659,18 +666,18 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args       = _build_parser().parse_args()
-    docs_dir   = Path(args.docs)
-    out_dir    = Path(args.output_dir)
-    n_results  = args.n_results
-    run_chroma = not args.no_chroma
+    docs_dir  = Path(args.docs)
+    out_dir   = Path(args.output_dir)
+    n_results = args.n_results
+    run_dense = not args.no_dense
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
     # Build stores
     # ------------------------------------------------------------------
-    tfidf_store  = _build_tfidf(docs_dir)
-    chroma_store = _build_chroma(docs_dir) if run_chroma else None
+    tfidf_store = _build_tfidf(docs_dir)
+    chroma_store = _build_dense(docs_dir) if run_dense else None
 
     # ------------------------------------------------------------------
     # Benchmark
@@ -678,10 +685,10 @@ def main() -> None:
     log.info("Running %d queries against TF-IDF store …", len(TEST_QUERIES))
     tfidf_results, tfidf_latencies = _timed_query(tfidf_store, TEST_QUERIES, n_results)
 
-    chroma_results  = None
+    chroma_results   = None
     chroma_latencies = None
     if chroma_store is not None:
-        log.info("Running %d queries against ChromaDB store …", len(TEST_QUERIES))
+        log.info("Running %d queries against Dense Embedding store …", len(TEST_QUERIES))
         chroma_results, chroma_latencies = _timed_query(chroma_store, TEST_QUERIES, n_results)
 
     # ------------------------------------------------------------------
@@ -711,7 +718,7 @@ def main() -> None:
     metrics.to_csv(csv_path, index=False)
     log.info("Metrics saved to %s", csv_path)
 
-    log.success("Benchmark complete.  All outputs written to %s", out_dir)
+    log.success("Benchmark complete. All outputs written to %s", out_dir)
 
 
 if __name__ == "__main__":

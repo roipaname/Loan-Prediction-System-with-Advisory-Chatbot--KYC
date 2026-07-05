@@ -15,6 +15,7 @@ from styles.theme import (inject, sidebar_logo, apply_chart_layout,
                            TEXT, TEXT2, TEXT3, CARD, CARD2,
                            BORDER, SUCCESS, SUCCESS_LT, DANGER, DANGER_LT)
 CARD3 = CARD2
+from styles.icons import icon as _icon
 from utils.mock_data import get_data, intent_label, intent_icon, risk_color
 
 # fix CARD3 import
@@ -23,7 +24,7 @@ try:
 except ImportError:
     from styles.theme import CARD as CARD3
 
-st.set_page_config(page_title="LAPAS – AI Advisory", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="LAPAS – AI Advisory", page_icon="L", layout="wide")
 inject()
 sidebar_logo()
 
@@ -31,8 +32,9 @@ df = get_data()
 
 # ── Page header ────────────────────────────────────────────────────────────────
 st.markdown(f"""
-<div style="margin-bottom:1rem;">
-  <span style="font-size:1.5rem;font-weight:800;color:{TEXT};">🤖 AI Advisory</span>
+<div style="margin-bottom:1rem;display:flex;align-items:center;gap:0.6rem;">
+  {_icon('cpu-chip',26,GOLD)}
+  <span style="font-size:1.5rem;font-weight:800;color:{TEXT};">AI Advisory</span>
   <span style="font-size:0.84rem;color:{TEXT3};margin-left:0.8rem;">
     SHAP attribution · Policy-grounded explanation · Export report</span>
 </div>
@@ -52,7 +54,7 @@ selected = st.selectbox("Select Applicant", all_ids, index=preselect,
 if selected == "— Select an applicant —":
     st.markdown(f"""
     <div style="text-align:center;padding:4rem;color:{TEXT3};">
-      <div style="font-size:3rem;margin-bottom:0.5rem;">🔍</div>
+      <div style="margin-bottom:0.8rem;">{_icon('magnifying-glass',52,TEXT3)}</div>
       <div style="font-size:1rem;font-weight:600;color:{TEXT2};">
         Select an applicant above to generate their advisory report.</div>
       <div style="font-size:0.82rem;margin-top:0.3rem;">
@@ -106,9 +108,9 @@ st.markdown(f"""
       </div>'''
       for lbl, val in [
         ("Age",          f"{int(row['person_age'])} yrs"),
-        ("Income",       f"${row['person_income']:,.0f}"),
+        ("Income",       f"R{row['person_income']:,.0f}"),
         ("Credit Score", f"{int(row['credit_score'])} ({row['credit_score_tier']})"),
-        ("Loan Amount",  f"${row['loan_amnt']:,.0f}"),
+        ("Loan Amount",  f"R{row['loan_amnt']:,.0f}"),
         ("Purpose",      f"{intent_icon(row['loan_intent'])} {intent_label(row['loan_intent'])}"),
         ("Grade",        f"{row['loan_grade']} · {row['loan_int_rate']:.1f}%"),
       ]
@@ -118,7 +120,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ── Three tabs ────────────────────────────────────────────────────────────────
-t1, t2, t3 = st.tabs(["📊 SHAP Attribution", "📋 AI Explanation", "🎯 Next Steps"])
+t1, t2, t3 = st.tabs(["SHAP Attribution", "AI Explanation", "Next Steps"])
 
 # ─── Tab 1: SHAP ──────────────────────────────────────────────────────────────
 with t1:
@@ -163,7 +165,7 @@ with t1:
     with sb:
         st.markdown(f"""
         <div class="info-panel">
-          <div class="info-panel-title">📌 How to Read This Chart</div>
+          <div class="info-panel-title">{_icon('information-circle',14,GOLD_LT)} How to Read This Chart</div>
           <div style="font-size:0.82rem;color:{TEXT2};line-height:1.65;">
             Each bar shows how much a feature pushed the prediction toward
             <b style="color:{SUCCESS_LT};">approval</b> (positive, right)
@@ -177,7 +179,7 @@ with t1:
         </div>
         <br>
         <div class="info-panel">
-          <div class="info-panel-title">🏆 Top Drivers</div>
+          <div class="info-panel-title">{_icon('trophy',14,GOLD_LT)} Top Drivers</div>
           {''.join([
             f"""<div style="display:flex;justify-content:space-between;
                 padding:0.4rem 0;border-bottom:1px solid {BORDER};
@@ -206,7 +208,7 @@ with t2:
         if gen_key not in st.session_state['generated']:
             st.markdown(f"""
             <div style="text-align:center;padding:2rem;color:{TEXT2};">
-              <div style="font-size:2rem;margin-bottom:0.5rem;">🤖</div>
+              <div style="margin-bottom:0.7rem;">{_icon('cpu-chip',40,TEXT3)}</div>
               <div style="font-size:0.9rem;">Click the button to generate the AI advisory explanation.</div>
             </div>
             """, unsafe_allow_html=True)
