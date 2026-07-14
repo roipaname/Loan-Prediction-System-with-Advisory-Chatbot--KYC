@@ -8,16 +8,19 @@ import streamlit as st
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from styles.theme import inject, sidebar_logo, GOLD, GOLD_LT, GOLD_DK
+from styles.theme import inject, sidebar_logo, get_logo_image, GOLD, GOLD_LT, GOLD_DK
 from styles.theme import TEXT, TEXT2, TEXT3, CARD, CARD2, BORDER, SUCCESS, SUCCESS_LT, DANGER, DANGER_LT
 from styles.icons import icon as _icon
-from utils.mock_data import get_data, intent_label, intent_icon, risk_color
+from utils import api_client
+from utils.mock_data import intent_label, intent_icon, risk_color
 
-st.set_page_config(page_title="LAPAS – Customers", page_icon="L", layout="wide")
+st.set_page_config(page_title="LAPAS – Customers", page_icon=get_logo_image() or "L", layout="wide")
 inject()
 sidebar_logo()
 
-df = get_data()
+df, using_mock = api_client.get_applicants_safe()
+if using_mock:
+    st.warning("Backend unavailable — showing sample data.")
 
 # ── Sidebar Filters ───────────────────────────────────────────────────────────
 st.sidebar.markdown(f'<div class="section-header" style="font-size:0.78rem;">{_icon("funnel",13,GOLD_LT)} Filters</div>',
@@ -91,8 +94,8 @@ st.markdown(f"""
       {len(fdf):,} of {len(df):,} applications</span>
   </div>
   <div style="display:flex;gap:0.6rem;">
-    <span class="badge-approved">✓ {approved_n} Approved</span>
-    <span class="badge-rejected">✗ {rejected_n} Rejected</span>
+    <span class="badge-approved">{approved_n} Approved</span>
+    <span class="badge-rejected">{rejected_n} Rejected</span>
   </div>
 </div>
 """, unsafe_allow_html=True)

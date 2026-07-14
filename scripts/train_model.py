@@ -310,6 +310,14 @@ def save_all_models(
         best_algo.upper(), selection_metric, best_score,
     )
 
+    # --- Save the full ranked comparison table for the frontend's Findings
+    # & Comparisons page (best_model.json only stores the single selection
+    # metric's scores, not the full metric suite for all algorithms) ---
+    comparison = ranked.copy()
+    comparison["is_champion"] = comparison["algorithm"] == best_algo
+    comparison.to_csv(models_dir / "model_comparison.csv", index=True, index_label="rank")
+    log.info("Saved model comparison table → %s", models_dir / "model_comparison.csv")
+
     # --- Save to the canonical best-model path (overwrites previous run) ---
     # BEST_MODEL_PATH ends in .joblib; strip suffix so LoanClassifier.save()
     # can append both .joblib and .json itself

@@ -8,13 +8,12 @@ import streamlit as st
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from styles.theme import inject, sidebar_logo, GOLD, GOLD_LT, GOLD_DK
+from styles.theme import inject, sidebar_logo, get_logo_image, GOLD, GOLD_LT, GOLD_DK
 from styles.theme import TEXT, TEXT2, TEXT3, CARD, CARD2, BORDER, SUCCESS, DANGER
 from styles.icons import icon as _icon
-import uuid
-from datetime import datetime
+from utils import api_client
 
-st.set_page_config(page_title="LAPAS – Application", page_icon="L", layout="wide")
+st.set_page_config(page_title="LAPAS – Application", page_icon=get_logo_image() or "L", layout="wide")
 inject()
 sidebar_logo()
 
@@ -33,9 +32,9 @@ if st.session_state.get("last_submitted_id"):
     sid = st.session_state["last_submitted_id"]
     outcome = st.session_state.get("last_outcome", "approved")
     prob    = st.session_state.get("last_prob", 0.0)
-    badge   = (f'<span class="badge-approved">✓ Approved</span>'
+    badge   = (f'<span class="badge-approved">Approved</span>'
                if outcome == 'approved' else
-               f'<span class="badge-rejected">✗ Rejected</span>')
+               f'<span class="badge-rejected">Rejected</span>')
 
     st.markdown(f"""
     <div class="submit-success">
@@ -147,45 +146,35 @@ with st.form("loan_form", clear_on_submit=False):
 
 # ── Process submission ────────────────────────────────────────────────────────
 if submitted:
-    from utils.mock_data import get_data
-    import numpy as np
-
-    new_id = str(uuid.uuid4())[:8].upper()
     defaults_bool = prev_defaults == "Yes"
 
-    # Mock scoring
-    grade_enc = {'A':6,'B':5,'C':4,'D':3,'E':2,'F':1,'G':0}
-    score = (
-        (credit_score - 300) / 550 * 0.38 +
-        (1 - loan_pct) * 0.22 +
-        (not defaults_bool) * 0.22 +
-        (grade_enc.get(loan_grade, 3) / 6) * 0.10 +
-        min(emp_exp, 20) / 20 * 0.08
-    ) + np.random.normal(0, 0.04)
-    prob = float(np.clip(score, 0.02, 0.98))
-    outcome = "approved" if prob > 0.52 else "rejected"
-
-    # Build record for session state
-    new_row = {
-        'id': new_id, 'person_age': float(age), 'person_gender': gender,
-        'person_education': education, 'person_income': float(income),
-        'person_emp_exp': int(emp_exp), 'person_home_ownership': home_ownership,
-        'loan_amnt': float(loan_amnt), 'loan_intent': loan_intent,
-        'loan_grade': loan_grade, 'loan_int_rate': float(loan_int_rate),
-        'loan_percent_income': loan_pct, 'cb_person_cred_hist_length': float(cred_hist),
-        'credit_score': int(credit_score), 'previous_loan_defaults_on_file': defaults_bool,
-        'created_at': datetime.now(), 'predicted_outcome': outcome,
-        'approval_probability': round(prob, 4),
-        'risk_tier': 'Low' if prob >= 0.70 else ('Medium' if prob >= 0.45 else 'High'),
+    payload = {
+        "person_age":                     int(age),
+        "person_gender":                  gender,
+        "person_education":               education,
+        "person_income":                  float(income),
+        "person_emp_exp":                 int(emp_exp),
+        "person_home_ownership":          home_ownership,
+        "loan_amnt":                      float(loan_amnt),
+        "loan_intent":                    loan_intent,
+        "loan_grade":                     loan_grade,
+        "loan_int_rate":                  float(loan_int_rate),
+        "loan_percent_income":            loan_pct,
+        "cb_person_cred_hist_length":     float(cred_hist),
+        "credit_score":                   int(credit_score),
+        "previous_loan_defaults_on_file": defaults_bool,
     }
-    if 'new_applications' not in st.session_state:
-        st.session_state['new_applications'] = []
-    st.session_state['new_applications'].append(new_row)
-    st.session_state['last_submitted_id'] = new_id
-    st.session_state['last_outcome']      = outcome
-    st.session_state['last_prob']         = prob
-    st.session_state['selected_customer'] = new_id
-    st.rerun()
+
+    try:
+        with st.spinner("Running credit assessment…"):
+            result = api_client.submit_application(payload)
+        st.session_state['last_submitted_id'] = result['display_code']
+        st.session_state['last_outcome']      = result['outcome']
+        st.session_state['last_prob']         = result['probability']
+        st.session_state['selected_customer'] = result['display_code']
+        st.rerun()
+    except api_client.BackendUnavailable as exc:
+        st.error(f"Could not reach the scoring backend: {exc}")
 
 # ── Sidebar tip ───────────────────────────────────────────────────────────────
 st.sidebar.markdown(f"""

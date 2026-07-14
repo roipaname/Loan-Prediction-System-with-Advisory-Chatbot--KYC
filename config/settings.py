@@ -1,4 +1,14 @@
 import os
+
+# macOS Intel: xgboost's OpenMP runtime and torch/sentence-transformers'
+# OpenMP runtime contend for the same libomp.dylib when both are loaded in one
+# process (backend/deps.py loads both the xgboost classifier and, lazily, the
+# VectorStore). Without this, encoding a query with SentenceTransformer hangs
+# indefinitely (confirmed) instead of returning. Must be set before torch is
+# ever imported, so it lives at the very top of this always-imported-first module.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
 from dotenv import load_dotenv
 from pathlib import Path
 from loguru import logger

@@ -34,4 +34,13 @@ dependencies = [
     "python-docx>=1.0.0",
     # NLP utilities
     "nltk>=3.8.0",
+    # Database
+    "sqlalchemy>=2.0.0",
+    "psycopg2-binary>=2.9.0",
+    # Backend API
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "requests>=2.32.0",
+    # Per-applicant local feature attribution (LIME replaces SHAP — no numba/llvmlite)
+    "lime>=0.2.0.1",
 ]
