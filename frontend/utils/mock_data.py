@@ -32,13 +32,13 @@ INTENT_LABELS   = {
     'VENTURE':           'Venture',
 }
 
-INTENT_ICONS    = {
-    'DEBTCONSOLIDATION': '💳',
-    'EDUCATION':         '🎓',
-    'HOME_IMPROVEMENT':  '🏠',
-    'MEDICAL':           '🏥',
-    'PERSONAL':          '👤',
-    'VENTURE':           '🚀',
+_INTENT_ICON_NAMES = {
+    'DEBTCONSOLIDATION': 'credit-card',
+    'EDUCATION':         'academic-cap',
+    'HOME_IMPROVEMENT':  'home',
+    'MEDICAL':           'heart',
+    'PERSONAL':          'user',
+    'VENTURE':           'rocket-launch',
 }
 
 RISK_COLORS     = {'Low': '#5C8C6A', 'Medium': '#C4A87A', 'High': '#8C5E62'}
@@ -195,7 +195,7 @@ def _add_explanations(df: pd.DataFrame) -> pd.DataFrame:
         top_feat = sorted(shap.items(), key=lambda x: abs(x[1]), reverse=True)[:3]
 
         if o == 'approved':
-            return f"""## Loan Application Assessment: APPROVED ✅
+            return f"""## Loan Application Assessment: APPROVED
 
 **Risk Classification:** {risk} Risk | **Credit Score:** {cs} ({tier})
 
@@ -206,7 +206,7 @@ Your loan application has been assessed and approved based on a comprehensive an
 **Primary drivers of approval:**
 - Your credit score of **{cs}** ({tier}) is the strongest positive signal, contributing significantly to the model's confidence.
 - A loan-to-income ratio of **{lpi*100:.1f}%** is within acceptable bounds, indicating manageable repayment capacity.
-- An annual income of **${inc:,.0f}** provides a solid financial foundation for the requested loan amount.
+- An annual income of **R{inc:,.0f}** provides a solid financial foundation for the requested loan amount.
 {"- A clean repayment history with no previous defaults further strengthens the application." if not prev else ""}
 
 **Top SHAP Feature Attributions:**
@@ -221,7 +221,7 @@ Under FATF KYC Section 4.2, the customer due diligence assessment has been compl
 3. Avoid taking on additional high-interest debt before loan drawdown.
 """
         else:
-            return f"""## Loan Application Assessment: REJECTED ❌
+            return f"""## Loan Application Assessment: REJECTED
 
 **Risk Classification:** {risk} Risk | **Credit Score:** {cs} ({tier})
 
@@ -243,7 +243,7 @@ Under Basel III Article 147, the current risk profile exceeds the acceptable exp
 
 ### Best Next Steps to Improve Eligibility
 1. **Improve credit score** — Target a score above 670 (currently {cs}). Pay down existing balances and ensure on-time payments for 6-12 months.
-2. **Reduce loan amount** — Consider applying for {f'${max(1000, row["loan_amnt"]*0.65):.0f}'} (35% less) to bring the loan-to-income ratio below 20%.
+2. **Reduce loan amount** — Consider applying for R{max(1000, row["loan_amnt"]*0.65):,.0f} (35% less) to bring the loan-to-income ratio below 20%.
 3. **Increase income documentation** — Additional income streams or a co-applicant can strengthen the income profile.
 4. **Address defaults** — If a previous default exists, obtain a letter of explanation and evidence of resolved obligation.
 5. **Re-apply in 6-12 months** — Allow time for credit profile improvements to register with credit bureaus.
@@ -280,8 +280,12 @@ def intent_label(intent: str) -> str:
     return INTENT_LABELS.get(intent, intent)
 
 
-def intent_icon(intent: str) -> str:
-    return INTENT_ICONS.get(intent, '💼')
+def intent_icon(intent: str, size: int = 14) -> str:
+    try:
+        from styles.icons import icon as _svg
+        return _svg(_INTENT_ICON_NAMES.get(intent, 'chart-bar'), size=size)
+    except Exception:
+        return '&#9632;'
 
 
 def risk_color(tier: str) -> str:

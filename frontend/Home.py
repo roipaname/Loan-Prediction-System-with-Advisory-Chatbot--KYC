@@ -1,28 +1,33 @@
 """
 Home.py  –  LAPAS landing page
-Hero section · KPI strip · recent activity feed · quick-navigation cards
+Hero · KPI strip · recent activity feed · quick-navigation cards
 """
 
 import streamlit as st
 import plotly.graph_objects as go
-from datetime import datetime
 import sys, os
 sys.path.insert(0, os.path.dirname(__file__))
 
-from styles.theme import inject, sidebar_logo, GOLD, GOLD_LT, GOLD_DK, TEXT, TEXT2, TEXT3
-from styles.theme import CARD, CARD2, BORDER, SUCCESS, DANGER, SILVER, apply_chart_layout
-from utils.mock_data import get_data, intent_icon, intent_label
+from styles.theme import (inject, sidebar_logo, get_logo_image,
+                           GOLD, GOLD_LT, CREAM,
+                           TEXT, TEXT2, TEXT3,
+                           BORDER, SUCCESS, DANGER, SILVER, apply_chart_layout)
+from styles.icons import icon as _icon
+from utils import api_client
+from utils.mock_data import intent_icon, intent_label
 
 st.set_page_config(
     page_title="LAPAS – Home",
-    page_icon="./frontend/assets/logo.png",
+    page_icon=get_logo_image() or "L",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 inject()
 sidebar_logo()
 
-df = get_data()
+df, using_mock = api_client.get_applicants_safe()
+if using_mock:
+    st.warning("Backend unavailable — showing sample data.")
 
 # ── KPIs ──────────────────────────────────────────────────────────────────────
 total        = len(df)
@@ -35,17 +40,15 @@ high_risk_n  = (df['risk_tier'] == 'High').sum()
 # ── Hero ──────────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <div class="hero-container">
-  <div style="display:flex; align-items:center; gap:1.2rem; margin-bottom:0.5rem;">
-    <div>
-      <div class="hero-title"><span>LAPAS</span></div>
-      <div class="hero-subtitle">Loan Approval Prediction &amp; Advisory System</div>
-    </div>
-  </div>
-  <div style="margin-top:1.2rem; display:flex; gap:0.8rem; flex-wrap:wrap;">
-    <span class="stat-pill">🤖 ML Ensemble Active</span>
-    <span class="stat-pill">📄 RAG Explanation Ready</span>
-    <span class="stat-pill">⚖️ Fairness Monitoring On</span>
-    <span class="stat-pill">🗄️ {total} Applications Loaded</span>
+  <div class="hero-tagline">Predict &middot; Advise &middot; Approve</div>
+  <div class="hero-title"><span>LAPAS</span></div>
+  <div class="hero-subtitle" style="margin-bottom:1.6rem;">
+    Loan Approval Prediction &amp; Advisory System</div>
+  <div style="display:flex; gap:0.65rem; flex-wrap:wrap;">
+    <span class="stat-pill">{_icon('cpu-chip',13,GOLD_LT)} ML Ensemble Active</span>
+    <span class="stat-pill">{_icon('document-text',13,GOLD_LT)} RAG Explanations</span>
+    <span class="stat-pill">{_icon('scale',13,GOLD_LT)} Fairness Monitoring</span>
+    <span class="stat-pill">{_icon('server-stack',13,GOLD_LT)} {total:,} Applications</span>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -53,10 +56,10 @@ st.markdown(f"""
 # ── KPI Strip ─────────────────────────────────────────────────────────────────
 c1, c2, c3, c4, c5 = st.columns(5)
 c1.metric("Total Applications",  f"{total:,}")
-c2.metric("Approval Rate",       f"{approval_pct:.1f}%",   delta="+2.3% vs last month")
-c3.metric("Avg Credit Score",    f"{avg_score}",            delta="+12 pts")
-c4.metric("Avg Loan Amount",     f"${avg_loan:,.0f}")
-c5.metric("High Risk Flagged",   f"{high_risk_n}",          delta=f"-{3} this week", delta_color="inverse")
+c2.metric("Approval Rate",       f"{approval_pct:.1f}%",  delta="+2.3% vs last month")
+c3.metric("Avg Credit Score",    f"{avg_score}",           delta="+12 pts")
+c4.metric("Avg Loan Amount",     f"R{avg_loan:,.0f}")
+c5.metric("High Risk Flagged",   f"{high_risk_n}",         delta="-3 this week", delta_color="inverse")
 
 st.markdown('<div class="gold-divider"></div>', unsafe_allow_html=True)
 
@@ -64,39 +67,47 @@ st.markdown('<div class="gold-divider"></div>', unsafe_allow_html=True)
 left, right = st.columns([1.4, 1], gap="large")
 
 with left:
-    st.markdown('<div class="section-header">📋 Recent Applications</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="section-header">'
+        f'{_icon("clipboard-list",14,GOLD_LT)} Recent Applications</div>',
+        unsafe_allow_html=True,
+    )
     recent = df.sort_values('created_at', ascending=False).head(10)
     for _, row in recent.iterrows():
         approved_flag = row['predicted_outcome'] == 'approved'
-        dot_class = "activity-dot-approved" if approved_flag else "activity-dot-rejected"
-        badge = (f'<span class="badge-approved">Approved</span>'
-                 if approved_flag else
-                 f'<span class="badge-rejected">Rejected</span>')
-        icon = intent_icon(row['loan_intent'])
-        label_text = intent_label(row['loan_intent'])
-        st.markdown(f"""
-        <div class="activity-row">
-          <div class="{dot_class}"></div>
-          <div style="flex:1; min-width:0;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <span style="font-size:0.82rem;font-weight:600;color:{TEXT};font-family:monospace;">
-                APP-{row['id']}</span>
-              {badge}
-            </div>
-            <div style="font-size:0.74rem;color:{TEXT3};margin-top:2px;">
-              {icon} {label_text} &nbsp;·&nbsp; ${row['loan_amnt']:,.0f}
-              &nbsp;·&nbsp; Score {row['credit_score']}
-              &nbsp;·&nbsp; {row['created_at'].strftime('%d %b %Y')}
-            </div>
-          </div>
-          <div style="font-size:0.78rem;color:{GOLD_LT};font-weight:600;white-space:nowrap;">
-            {row['risk_tier']} Risk
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+        dot_cls = "activity-dot-approved" if approved_flag else "activity-dot-rejected"
+        badge = (
+            f'<span class="badge-approved">Approved</span>'
+            if approved_flag else
+            f'<span class="badge-rejected">Rejected</span>'
+        )
+        ilabel = intent_label(row['loan_intent'])
+        iicon  = intent_icon(row['loan_intent'])
+        st.markdown(
+            f'<div class="activity-row">'
+            f'<div class="{dot_cls}"></div>'
+            f'<div style="flex:1;min-width:0;">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;">'
+            f'<span style="font-size:0.82rem;font-weight:600;color:{TEXT};'
+            f'font-family:monospace;letter-spacing:0.06em;">APP-{row["id"]}</span>'
+            f'{badge}</div>'
+            f'<div style="font-size:0.73rem;color:{TEXT3};margin-top:2px;">'
+            f'{iicon} {ilabel} &nbsp;&middot;&nbsp; R{row["loan_amnt"]:,.0f}'
+            f' &nbsp;&middot;&nbsp; Score {row["credit_score"]}'
+            f' &nbsp;&middot;&nbsp; {row["created_at"].strftime("%d %b %Y")}</div>'
+            f'</div>'
+            f'<div style="font-size:0.76rem;color:{GOLD_LT};font-weight:600;'
+            f'white-space:nowrap;">{row["risk_tier"]} Risk</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
 with right:
-    st.markdown('<div class="section-header">📊 Quick Insights</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="section-header">'
+        f'{_icon("chart-pie",14,GOLD_LT)} Quick Insights</div>',
+        unsafe_allow_html=True,
+    )
 
     # Approval donut
     fig_donut = go.Figure(go.Pie(
@@ -104,7 +115,7 @@ with right:
         values=[approved, total - approved],
         hole=0.72,
         marker_colors=[SUCCESS, DANGER],
-        textfont=dict(size=10, color=TEXT2),
+        textinfo='none',
         hovertemplate="%{label}: %{value}<br>%{percent}<extra></extra>",
     ))
     fig_donut.add_annotation(
@@ -113,10 +124,10 @@ with right:
         font=dict(size=18, color=TEXT, family='Inter'),
     )
     apply_chart_layout(fig_donut, "Approval Overview", height=240)
-    fig_donut.update_layout(showlegend=True, legend=dict(
-        orientation='h', y=-0.05, x=0.5, xanchor='center',
-    ))
-    fig_donut.update_traces(textinfo='none')
+    fig_donut.update_layout(
+        showlegend=True,
+        legend=dict(orientation='h', y=-0.05, x=0.5, xanchor='center'),
+    )
     st.plotly_chart(fig_donut, use_container_width=True, config={'displayModeBar': False})
 
     # Risk tier bars
@@ -137,40 +148,42 @@ with right:
 st.markdown('<div class="gold-divider"></div>', unsafe_allow_html=True)
 
 # ── Quick Navigation Cards ────────────────────────────────────────────────────
-st.markdown('<div class="section-header">🧭 Navigate</div>', unsafe_allow_html=True)
+st.markdown(
+    f'<div class="section-header">{_icon("map",14,GOLD_LT)} Navigate</div>',
+    unsafe_allow_html=True,
+)
 
 nav_items = [
-    ("📝", "Customer Application",
-     "Submit a new loan application with full demographic and financial details.",
-     "pages/1_Customer_Application.py"),
-    ("👥", "Customers",
-     "Browse all applications as cards. Filter by score, risk tier, grade and more.",
-     "pages/2_Customers.py"),
-    ("📊", "Dashboard",
-     "18+ interactive charts covering approvals, credit risk, income, and fairness.",
-     "pages/3_Dashboard.py"),
-    ("🤖", "AI Advisory",
-     "Select any applicant to view SHAP attribution, policy-grounded explanation, and export a PDF report.",
-     "pages/4_AI_Advisory.py"),
+    (_icon("document-plus", 30, GOLD), "Customer Application",
+     "Submit a new loan application with full demographic and financial details."),
+    (_icon("user-group",    30, GOLD), "Customers",
+     "Browse all applications as cards. Filter by score, risk tier, grade and more."),
+    (_icon("chart-bar-square", 30, GOLD), "Dashboard",
+     "12+ KPI cards and 18+ interactive charts covering approvals, risk, and fairness."),
+    (_icon("cpu-chip",      30, GOLD), "AI Advisory",
+     "Select any applicant to view SHAP attribution, policy explanation, and export PDF."),
 ]
 
 cols = st.columns(4, gap="small")
-for col, (icon, title, desc, _) in zip(cols, nav_items):
+for col, (nav_icon, title, desc) in zip(cols, nav_items):
     with col:
-        st.markdown(f"""
-        <div class="info-panel" style="height:160px; position:relative;">
-          <div style="font-size:1.8rem; margin-bottom:0.5rem;">{icon}</div>
-          <div style="font-size:0.95rem; font-weight:700; color:{TEXT}; margin-bottom:0.4rem;">
-            {title}</div>
-          <div style="font-size:0.78rem; color:{TEXT2}; line-height:1.5;">{desc}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="info-panel" style="min-height:155px;">'
+            f'<div style="margin-bottom:0.75rem;">{nav_icon}</div>'
+            f'<div style="font-family:\'Playfair Display\',Georgia,serif;'
+            f'font-size:0.97rem;font-weight:600;color:{TEXT};margin-bottom:0.4rem;">'
+            f'{title}</div>'
+            f'<div style="font-size:0.77rem;color:{TEXT2};line-height:1.55;">{desc}</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
 # ── Footer ────────────────────────────────────────────────────────────────────
-st.markdown(f"""
-<div style="text-align:center; margin-top:2.5rem; padding-top:1rem;
-            border-top:1px solid {BORDER}; color:{TEXT3}; font-size:0.74rem;">
-  LAPAS &nbsp;·&nbsp; Loan Approval Prediction &amp; Advisory System
-  &nbsp;·&nbsp; University of Johannesburg &nbsp;·&nbsp; Honours Year Project 2026
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    f'<div style="text-align:center;margin-top:2.5rem;padding-top:1rem;'
+    f'border-top:1px solid {BORDER};color:{TEXT3};font-size:0.72rem;">'
+    f'LAPAS &nbsp;&middot;&nbsp; Loan Approval Prediction &amp; Advisory System'
+    f' &nbsp;&middot;&nbsp; University of Johannesburg &nbsp;&middot;&nbsp; Honours Project 2026'
+    f'</div>',
+    unsafe_allow_html=True,
+)

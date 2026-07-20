@@ -85,6 +85,7 @@ class ModelAlgorithmEnum(enum.Enum):
     decision_tree = "decision_tree"
     random_forest = "random_forest"
     gradient_boosting = "gradient_boosting"
+    xgboost = "xgboost"
     naive_bayes = "naive_bayes"
  
  
@@ -114,6 +115,10 @@ class LoanApplicant(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+
+    # Short customer-facing identifier shown in the UI as "APP-{display_code}".
+    # Independent of the UUID primary key, which stays internal (FKs/joins only).
+    display_code = Column(String(8), unique=True, index=True, nullable=True)
 
     # --- Demographic ---
     person_age = Column(Numeric(5, 1), nullable=False)

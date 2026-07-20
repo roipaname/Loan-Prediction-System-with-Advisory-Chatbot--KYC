@@ -1,5 +1,8 @@
+import uuid as _uuid
 from typing import Optional, List, Dict, Any
 from uuid import UUID
+
+import pandas as pd
 
 from database.connection import Connection
 from database.schemas import (
@@ -8,6 +11,11 @@ from database.schemas import (
     MLModel,
     ModelPrediction,
     RAGExplanation,
+    PersonEducationEnum,
+    HomeOwnerShipEnum,
+    LoanIntentEnum,
+    CreditScoreTierEnum,
+    IncomeBucketEnum,
 )
 
 conn = Connection()
@@ -49,12 +57,82 @@ def list_all(model, limit: int = 100):
 # ==============================================================================
 
 def create_applicant(data: Dict[str, Any]) -> LoanApplicant:
+    data = dict(data)
+    data.setdefault("display_code", str(_uuid.uuid4())[:8].upper())
     applicant = LoanApplicant(**data)
     return save(applicant)
 
 
 def get_applicant(applicant_id: UUID) -> Optional[LoanApplicant]:
     return get_by_id(LoanApplicant, applicant_id)
+
+
+def get_applicant_by_code(display_code: str) -> Optional[LoanApplicant]:
+    with conn.get_db() as db:
+        obj = db.query(LoanApplicant).filter_by(display_code=display_code).first()
+        if obj:
+            db.refresh(obj)
+            db.expunge(obj)
+        return obj
+
+
+# ==============================================================================
+# FLAT DATASET FOR THE FRONTEND (applicant + engineered features + latest
+# prediction, joined). ~2,000 rows so a single pandas read is fast; the
+# frontend filters/sorts/paginates client-side exactly as it did on mock data.
+# ==============================================================================
+
+_APPLICANTS_JOIN_SQL = """
+    SELECT
+        a.display_code                       AS id,
+        a.person_age, a.person_gender, a.person_education,
+        a.person_income, a.person_emp_exp, a.person_home_ownership,
+        a.loan_amnt, a.loan_intent, a.loan_grade, a.loan_int_rate,
+        a.loan_percent_income, a.cb_person_cred_hist_length, a.credit_score,
+        a.previous_loan_defaults_on_file, a.created_at,
+        f.debt_to_income_ratio, f.affordability_ratio, f.composite_risk_score,
+        f.credit_score_tier, f.thin_credit_file, f.income_bucket,
+        p.predicted_outcome, p.approval_probability, p.risk_tier, p.shap_values,
+        m.algorithm AS model_algorithm
+    FROM loan_applicants a
+    LEFT JOIN engineered_features f ON f.applicant_id = a.id
+    LEFT JOIN model_predictions p   ON p.applicant_id = a.id
+    LEFT JOIN ml_models m           ON m.id = p.model_id
+    WHERE a.display_code IS NOT NULL
+    ORDER BY a.created_at DESC
+"""
+
+
+# SQLAlchemy's Enum() column type stores the Python enum MEMBER NAME in
+# Postgres, not .value — e.g. PersonEducationEnum.master ("Master") is stored
+# as the literal string "master". The ORM translates name -> member -> .value
+# transparently on every read, but raw SQL (used here for speed on a flat,
+# ~2k-row dataset) bypasses that translation and returns the bare names. Only
+# enums whose name differs from its value need remapping.
+_ENUM_NAME_TO_VALUE = {
+    "person_education":        {m.name: m.value for m in PersonEducationEnum},
+    "person_home_ownership":   {m.name: m.value for m in HomeOwnerShipEnum},
+    "loan_intent":             {m.name: m.value for m in LoanIntentEnum},
+    "credit_score_tier":       {m.name: m.value for m in CreditScoreTierEnum},
+    "income_bucket":           {m.name: m.value for m in IncomeBucketEnum},
+}
+
+
+def get_applicants_flat(limit: int = 5000) -> pd.DataFrame:
+    """
+    Return the full applicant+features+prediction dataset as a flat DataFrame,
+    shaped like the columns frontend/utils/mock_data.get_data() used to
+    produce (id, person_age, ..., predicted_outcome, risk_tier, shap_values).
+    """
+    df = pd.read_sql(_APPLICANTS_JOIN_SQL, conn.engine)
+    if limit:
+        df = df.head(limit)
+    for col in ("predicted_outcome", "risk_tier"):
+        df[col] = df[col].astype(object)
+    for col, mapping in _ENUM_NAME_TO_VALUE.items():
+        if col in df.columns:
+            df[col] = df[col].map(mapping).fillna(df[col])
+    return df
 
 
 # ==============================================================================
@@ -119,6 +197,20 @@ def get_applicant_predictions(applicant_id: UUID) -> List[ModelPrediction]:
         return objs
 
 
+def get_latest_prediction(applicant_id: UUID) -> Optional[ModelPrediction]:
+    with conn.get_db() as db:
+        obj = (
+            db.query(ModelPrediction)
+            .filter_by(applicant_id=applicant_id)
+            .order_by(ModelPrediction.predicted_at.desc())
+            .first()
+        )
+        if obj:
+            db.refresh(obj)
+            db.expunge(obj)
+        return obj
+
+
 # ==============================================================================
 # RAG
 # ==============================================================================
@@ -126,6 +218,29 @@ def get_applicant_predictions(applicant_id: UUID) -> List[ModelPrediction]:
 def create_rag(data: Dict[str, Any]) -> RAGExplanation:
     rag = RAGExplanation(**data)
     return save(rag)
+
+
+def upsert_rag(data: Dict[str, Any]) -> RAGExplanation:
+    """
+    RAGExplanation.prediction_id is unique (one-to-one with ModelPrediction),
+    but a user can regenerate the advisory report (e.g. switch retriever) any
+    number of times — update the existing row instead of inserting a duplicate.
+    """
+    with conn.get_db() as db:
+        existing = db.query(RAGExplanation).filter_by(prediction_id=data["prediction_id"]).first()
+        if existing:
+            for key, value in data.items():
+                setattr(existing, key, value)
+            db.flush()
+            db.refresh(existing)
+            db.expunge(existing)
+            return existing
+        rag = RAGExplanation(**data)
+        db.add(rag)
+        db.flush()
+        db.refresh(rag)
+        db.expunge(rag)
+        return rag
 
 
 def get_rag(prediction_id: UUID) -> Optional[RAGExplanation]:
