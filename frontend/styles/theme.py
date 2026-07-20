@@ -1,88 +1,70 @@
 """
 styles/theme.py
 Central CSS theme for LAPAS Streamlit frontend.
-
-Colour palette derived from the LAPAS logo:
-  - Warm charcoal  #1B1915 / #221F1A  (card surfaces)
-  - Bronze gold    #C9A96B → #8E6B35  (logo A-sweep gradient)
-  - Silver-grey    #8C9199            (secondary elements)
-  - Cream          #EDE3D5            (logo background – accent)
-  - Off-white      #F0EBE3            (primary text)
-  - Sage green     #5C8C6A            (approved)
-  - Muted rose     #8C5E62            (rejected)
-
-Typography:
-  - Playfair Display – display headings (mirrors logo serif)
-  - Inter           – UI body copy
+Colour palette derived from the LAPAS shield logo:
+  - Deep black  #0E0D0B  (logo background)
+  - Warm charcoal  #1A1714 / #221F1A  (card surfaces)
+  - Champagne gold  #C4A87A / #D4BC96  (shield accent)
+  - Cool silver  #8C9199  (shield lower half)
+  - Cream  #F0EBE3  (primary text)
+  - Warm grey  #A0978E  (secondary text)
+  - Sage green  #5C8C6A  (approved / positive)
+  - Muted rose  #8C5E62  (rejected / negative)
 """
 
 import streamlit as st
 import os as _os
 
-# ── Absolute path to logo (works from any page) ───────────────────────────────
-_STYLES_DIR = _os.path.dirname(_os.path.abspath(__file__))
-_LOGO_PATH  = _os.path.join(_STYLES_DIR, '..', 'assets', 'logo.png')
-
-
-def get_logo_image():
-    """Return a PIL Image of the LAPAS logo (for page_icon)."""
-    try:
-        from PIL import Image
-        return Image.open(_LOGO_PATH)
-    except Exception:
-        return None
-
-
-# ── Colour constants (also imported by page scripts for Plotly charts) ────────
-GOLD       = "#C9A96B"   # bronze-gold (logo midpoint)
-GOLD_LT    = "#D9BC82"   # lighter highlight gold
-GOLD_DK    = "#8E6B35"   # dark bronze shadow
+# ── Colour constants (also used in Python chart code) ────────────────────────
+GOLD       = "#C4A87A"
+GOLD_LT    = "#D4BC96"
+GOLD_DK    = "#A08858"
 SILVER     = "#8C9199"
-CREAM      = "#EDE3D5"   # logo background cream – used as accent
-BG         = "#0F0E0B"   # very dark warm charcoal
+BG         = "#0E0D0B"
 BG2        = "#141210"
-CARD       = "#1B1815"
-CARD2      = "#231F1A"
-CARD3      = "#2B2620"
-TEXT       = "#F0EBE3"   # primary text – warm off-white
-TEXT2      = "#A09588"   # secondary text
-TEXT3      = "#665E58"   # tertiary / disabled
+CARD       = "#1A1714"
+CARD2      = "#221F1A"
+CARD3      = "#2A261F"
+TEXT       = "#F0EBE3"
+TEXT2      = "#A0978E"
+TEXT3      = "#665E58"
 SUCCESS    = "#5C8C6A"
 SUCCESS_LT = "#7AB08A"
 DANGER     = "#8C5E62"
 DANGER_LT  = "#AA7A7E"
-BORDER     = "#2E2A24"
-BORDER2    = "#3C362E"
+BORDER     = "#2C2822"
+BORDER2    = "#3A342C"
 
 
 _CSS = f"""
 <style>
-/* ── Google Fonts: Playfair Display (headings) + Inter (body) ────────── */
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
+/* ── Google Fonts ─────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-/* ── Root ─────────────────────────────────────────────────────────────── */
+/* ── Root ─────────────────────────────────────────────────────────── */
 html, body, [class*="css"] {{
     font-family: 'Inter', sans-serif !important;
 }}
 
-/* ── App background ───────────────────────────────────────────────────── */
+/* ── App background ───────────────────────────────────────────────── */
 .stApp {{
     background-color: {BG};
     color: {TEXT};
 }}
+
 .main .block-container {{
-    padding-top: 1.25rem;
+    padding-top: 1.2rem;
     padding-bottom: 3rem;
-    max-width: 1420px;
+    max-width: 1400px;
 }}
 
-/* ── Sidebar ──────────────────────────────────────────────────────────── */
+/* ── Sidebar ──────────────────────────────────────────────────────── */
 [data-testid="stSidebar"] {{
-    background: linear-gradient(180deg, #0E0C09 0%, {CARD} 55%, #131109 100%) !important;
+    background: linear-gradient(180deg, #111008 0%, {CARD} 60%, #13110E 100%) !important;
     border-right: 1px solid {BORDER} !important;
 }}
 [data-testid="stSidebar"] > div:first-child {{
-    padding-top: 0.5rem;
+    padding-top: 1rem;
 }}
 [data-testid="stSidebarContent"] {{
     background: transparent !important;
@@ -91,96 +73,73 @@ html, body, [class*="css"] {{
 /* Sidebar nav links */
 [data-testid="stSidebarNav"] a {{
     color: {TEXT2} !important;
-    font-size: 0.9rem;
-    font-weight: 400;
+    font-size: 0.92rem;
     border-radius: 8px;
     margin: 2px 0;
-    padding: 7px 14px;
+    padding: 6px 12px;
     transition: all 0.2s;
-    letter-spacing: 0.01em;
 }}
 [data-testid="stSidebarNav"] a:hover {{
-    background: rgba(201,169,107,0.10) !important;
+    background: rgba(196,168,122,0.10) !important;
     color: {GOLD_LT} !important;
 }}
 [data-testid="stSidebarNav"] a[aria-selected="true"] {{
-    background: linear-gradient(90deg, rgba(201,169,107,0.16), rgba(201,169,107,0.03)) !important;
+    background: linear-gradient(90deg, rgba(196,168,122,0.18), rgba(196,168,122,0.04)) !important;
     color: {GOLD_LT} !important;
     border-left: 3px solid {GOLD};
-    font-weight: 500;
 }}
 
-/* ── Metric cards ─────────────────────────────────────────────────────── */
+/* ── Metric cards ─────────────────────────────────────────────────── */
 [data-testid="metric-container"] {{
-    background: linear-gradient(145deg, {CARD} 0%, {CARD2} 100%);
+    background: linear-gradient(135deg, {CARD} 0%, {CARD2} 100%);
     border: 1px solid {BORDER};
     border-radius: 14px;
     padding: 1.1rem 1.3rem !important;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.32);
-    transition: box-shadow 0.3s, transform 0.2s;
-    position: relative;
-    overflow: hidden;
-}}
-[data-testid="metric-container"]::after {{
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, {GOLD_DK}, transparent);
-    opacity: 0;
-    transition: opacity 0.3s;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+    transition: box-shadow 0.3s;
 }}
 [data-testid="metric-container"]:hover {{
-    box-shadow: 0 6px 28px rgba(201,169,107,0.13);
-    transform: translateY(-1px);
-}}
-[data-testid="metric-container"]:hover::after {{
-    opacity: 1;
+    box-shadow: 0 6px 32px rgba(196,168,122,0.12);
 }}
 [data-testid="metric-container"] label {{
     color: {TEXT2} !important;
-    font-size: 0.73rem !important;
-    letter-spacing: 0.10em !important;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.08em !important;
     text-transform: uppercase !important;
-    font-weight: 500 !important;
 }}
 [data-testid="metric-container"] [data-testid="stMetricValue"] {{
     color: {TEXT} !important;
-    font-size: 1.75rem !important;
+    font-size: 1.8rem !important;
     font-weight: 700 !important;
-    letter-spacing: -0.01em !important;
-    font-family: 'Inter', sans-serif !important;
 }}
 [data-testid="metric-container"] [data-testid="stMetricDelta"] {{
-    font-size: 0.76rem !important;
+    font-size: 0.78rem !important;
 }}
 
-/* ── Buttons ──────────────────────────────────────────────────────────── */
+/* ── Buttons ──────────────────────────────────────────────────────── */
 .stButton > button {{
     background: linear-gradient(135deg, {GOLD} 0%, {GOLD_DK} 100%);
-    color: #100E0A;
+    color: #0A0906;
     border: none;
-    border-radius: 9px;
+    border-radius: 10px;
     font-weight: 600;
-    font-size: 0.87rem;
-    letter-spacing: 0.025em;
-    padding: 0.55rem 1.5rem;
-    transition: all 0.22s ease;
-    box-shadow: 0 3px 14px rgba(201,169,107,0.25);
-    font-family: 'Inter', sans-serif !important;
+    font-size: 0.88rem;
+    letter-spacing: 0.02em;
+    padding: 0.55rem 1.4rem;
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 16px rgba(196,168,122,0.22);
 }}
 .stButton > button:hover {{
     background: linear-gradient(135deg, {GOLD_LT} 0%, {GOLD} 100%);
-    box-shadow: 0 6px 22px rgba(201,169,107,0.40);
+    box-shadow: 0 6px 24px rgba(196,168,122,0.38);
     transform: translateY(-1px);
-    color: #100E0A;
+    color: #0A0906;
 }}
 .stButton > button:active {{
-    transform: translateY(0);
-    box-shadow: 0 2px 8px rgba(201,169,107,0.20);
+    transform: translateY(0px);
 }}
 
-/* Secondary button */
+/* Secondary button override via class */
 .btn-secondary > button {{
     background: linear-gradient(135deg, {CARD2} 0%, {CARD3} 100%) !important;
     color: {TEXT2} !important;
@@ -190,31 +149,31 @@ html, body, [class*="css"] {{
 .btn-secondary > button:hover {{
     color: {GOLD_LT} !important;
     border-color: {GOLD_DK} !important;
-    background: linear-gradient(135deg, {CARD3} 0%, #302A22 100%) !important;
+    background: linear-gradient(135deg, {CARD3} 0%, #302820 100%) !important;
 }}
 
-/* ── Inputs ───────────────────────────────────────────────────────────── */
+/* ── Inputs ───────────────────────────────────────────────────────── */
 .stTextInput input,
 .stNumberInput input,
 .stTextArea textarea {{
     background-color: {CARD2} !important;
     color: {TEXT} !important;
     border: 1px solid {BORDER} !important;
-    border-radius: 9px !important;
-    font-size: 0.88rem !important;
+    border-radius: 10px !important;
+    font-size: 0.9rem !important;
 }}
 .stTextInput input:focus,
 .stNumberInput input:focus,
 .stTextArea textarea:focus {{
     border-color: {GOLD_DK} !important;
-    box-shadow: 0 0 0 2px rgba(201,169,107,0.14) !important;
+    box-shadow: 0 0 0 2px rgba(196,168,122,0.15) !important;
 }}
 
 /* Selectbox */
 [data-baseweb="select"] > div:first-child {{
     background-color: {CARD2} !important;
     border: 1px solid {BORDER} !important;
-    border-radius: 9px !important;
+    border-radius: 10px !important;
     color: {TEXT} !important;
 }}
 [data-baseweb="popover"] ul {{
@@ -227,7 +186,7 @@ html, body, [class*="css"] {{
 
 /* Multiselect tags */
 [data-baseweb="tag"] {{
-    background: rgba(201,169,107,0.16) !important;
+    background: rgba(196,168,122,0.18) !important;
     color: {GOLD_LT} !important;
 }}
 
@@ -240,7 +199,7 @@ html, body, [class*="css"] {{
     color: {GOLD_LT} !important;
 }}
 
-/* ── Tabs ─────────────────────────────────────────────────────────────── */
+/* ── Tabs ─────────────────────────────────────────────────────────── */
 .stTabs [data-baseweb="tab-list"] {{
     background-color: {CARD};
     border-radius: 12px;
@@ -252,26 +211,25 @@ html, body, [class*="css"] {{
     background-color: transparent;
     color: {TEXT2};
     border-radius: 9px;
-    font-size: 0.87rem;
+    font-size: 0.88rem;
     font-weight: 500;
-    padding: 0.5rem 1.2rem;
+    padding: 0.5rem 1.1rem;
     transition: all 0.2s;
-    letter-spacing: 0.01em;
 }}
 .stTabs [data-baseweb="tab"]:hover {{
     color: {GOLD_LT};
-    background: rgba(201,169,107,0.08);
+    background: rgba(196,168,122,0.08);
 }}
 .stTabs [aria-selected="true"] {{
     background: linear-gradient(135deg, {GOLD} 0%, {GOLD_DK} 100%) !important;
-    color: #0E0C09 !important;
+    color: #0A0906 !important;
     font-weight: 600 !important;
 }}
 .stTabs [data-baseweb="tab-border"] {{
     display: none !important;
 }}
 
-/* ── Expander ─────────────────────────────────────────────────────────── */
+/* ── Expander ─────────────────────────────────────────────────────── */
 [data-testid="stExpander"] {{
     background: {CARD};
     border: 1px solid {BORDER};
@@ -282,91 +240,67 @@ html, body, [class*="css"] {{
     font-size: 0.9rem;
 }}
 
-/* ── Dataframe ────────────────────────────────────────────────────────── */
+/* ── Dataframe ────────────────────────────────────────────────────── */
 [data-testid="stDataFrame"] {{
     border: 1px solid {BORDER};
     border-radius: 12px;
     overflow: hidden;
 }}
 
-/* ── Divider ──────────────────────────────────────────────────────────── */
+/* ── Divider ──────────────────────────────────────────────────────── */
 hr {{
     border: none;
     border-top: 1px solid {BORDER};
     margin: 1.2rem 0;
 }}
 
-/* ── Scrollbar ────────────────────────────────────────────────────────── */
+/* ── Scrollbar ────────────────────────────────────────────────────── */
 ::-webkit-scrollbar       {{ width: 6px; height: 6px; }}
 ::-webkit-scrollbar-track {{ background: {BG2}; }}
 ::-webkit-scrollbar-thumb {{ background: {BORDER2}; border-radius: 3px; }}
 ::-webkit-scrollbar-thumb:hover {{ background: {GOLD_DK}; }}
 
-/* ── Shared HTML components ───────────────────────────────────────────── */
+/* ── Custom shared HTML components ───────────────────────────────────*/
 
-/* Section heading — uses small caps feel */
+/* Section heading */
 .section-header {{
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: {TEXT2};
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid {BORDER};
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-}}
-
-/* Page title — Playfair Display */
-.page-title {{
-    font-family: 'Playfair Display', Georgia, serif;
-    font-size: 1.7rem;
+    font-size: 1.05rem;
     font-weight: 700;
     color: {TEXT};
-    letter-spacing: -0.01em;
-    line-height: 1.2;
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    margin-bottom: 0.15rem;
-}}
-.page-subtitle {{
-    font-size: 0.86rem;
-    color: {TEXT2};
-    margin-top: 3px;
-    font-weight: 400;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 0.8rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid {BORDER};
 }}
 
 /* Approved / Rejected badges */
 .badge-approved {{
-    background: rgba(92,140,106,0.16);
+    background: rgba(92,140,106,0.18);
     color: {SUCCESS_LT};
-    border: 1px solid rgba(92,140,106,0.32);
+    border: 1px solid rgba(92,140,106,0.35);
     border-radius: 20px;
-    padding: 3px 13px;
-    font-size: 0.72rem;
+    padding: 3px 12px;
+    font-size: 0.76rem;
     font-weight: 700;
-    letter-spacing: 0.07em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
     display: inline-block;
 }}
 .badge-rejected {{
-    background: rgba(140,94,98,0.16);
+    background: rgba(140,94,98,0.18);
     color: {DANGER_LT};
-    border: 1px solid rgba(140,94,98,0.32);
+    border: 1px solid rgba(140,94,98,0.35);
     border-radius: 20px;
-    padding: 3px 13px;
-    font-size: 0.72rem;
+    padding: 3px 12px;
+    font-size: 0.76rem;
     font-weight: 700;
-    letter-spacing: 0.07em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
     display: inline-block;
 }}
 
-/* Risk tier */
+/* Risk tier pill */
 .risk-low    {{ color: {SUCCESS_LT}; font-weight: 600; }}
 .risk-medium {{ color: {GOLD_LT};   font-weight: 600; }}
 .risk-high   {{ color: {DANGER_LT}; font-weight: 600; }}
@@ -377,150 +311,127 @@ hr {{
     border: 1px solid {BORDER};
     border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.28);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.30);
     transition: box-shadow 0.25s, transform 0.2s;
     margin-bottom: 1rem;
 }}
 .cust-card:hover {{
-    box-shadow: 0 8px 30px rgba(201,169,107,0.15);
+    box-shadow: 0 8px 32px rgba(196,168,122,0.14);
     transform: translateY(-2px);
 }}
 .cust-card-header-approved {{
-    background: linear-gradient(135deg, #1D3326 0%, #152820 100%);
-    border-bottom: 1px solid rgba(92,140,106,0.22);
+    background: linear-gradient(135deg, #1E3228 0%, #162A20 100%);
+    border-bottom: 1px solid rgba(92,140,106,0.25);
     padding: 0.85rem 1.1rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
 }}
 .cust-card-header-rejected {{
-    background: linear-gradient(135deg, #2A1A1C 0%, #211416 100%);
-    border-bottom: 1px solid rgba(140,94,98,0.22);
+    background: linear-gradient(135deg, #2A1A1C 0%, #221518 100%);
+    border-bottom: 1px solid rgba(140,94,98,0.25);
     padding: 0.85rem 1.1rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
 }}
 .cust-card-id {{
-    font-size: 0.8rem;
+    font-size: 0.82rem;
     font-weight: 700;
     color: {TEXT};
     font-family: 'Courier New', monospace;
-    letter-spacing: 0.10em;
+    letter-spacing: 0.08em;
 }}
 .cust-card-body {{
-    padding: 0.95rem 1.1rem 0.8rem;
+    padding: 1rem 1.1rem 0.8rem;
 }}
 .cust-metric-row {{
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.55rem;
+    gap: 0.6rem;
     margin-bottom: 0.7rem;
 }}
 .cust-metric {{
-    background: rgba(255,255,255,0.022);
+    background: rgba(255,255,255,0.025);
     border-radius: 8px;
-    padding: 0.5rem 0.65rem;
+    padding: 0.5rem 0.7rem;
 }}
 .cust-metric-label {{
-    font-size: 0.64rem;
+    font-size: 0.67rem;
     color: {TEXT3};
     text-transform: uppercase;
-    letter-spacing: 0.07em;
+    letter-spacing: 0.06em;
     margin-bottom: 2px;
 }}
 .cust-metric-value {{
-    font-size: 0.9rem;
+    font-size: 0.92rem;
     font-weight: 600;
     color: {TEXT};
 }}
 
 /* Hero section */
 .hero-container {{
-    background: linear-gradient(135deg, {CARD} 0%, {CARD2} 45%, #1F1A10 100%);
+    background: linear-gradient(135deg, {CARD} 0%, {CARD2} 50%, #1E1A12 100%);
     border: 1px solid {BORDER};
     border-radius: 20px;
-    padding: 2.4rem 2.8rem 2rem;
+    padding: 2.5rem 2.5rem 2rem;
     position: relative;
     overflow: hidden;
-    margin-bottom: 1.6rem;
+    margin-bottom: 1.5rem;
 }}
 .hero-container::before {{
     content: '';
     position: absolute;
-    top: -80px; right: -80px;
-    width: 280px; height: 280px;
-    background: radial-gradient(circle, rgba(201,169,107,0.08), transparent 68%);
+    top: -60px; right: -60px;
+    width: 220px; height: 220px;
+    background: radial-gradient(circle, rgba(196,168,122,0.10), transparent 70%);
     border-radius: 50%;
-    pointer-events: none;
 }}
-.hero-container::after {{
-    content: '';
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, {GOLD_DK} 40%, {GOLD} 60%, transparent);
-    opacity: 0.5;
-}}
-/* Playfair Display title */
 .hero-title {{
-    font-family: 'Playfair Display', Georgia, serif;
-    font-size: 2.6rem;
-    font-weight: 700;
+    font-size: 2.4rem;
+    font-weight: 800;
     color: {TEXT};
-    letter-spacing: -0.015em;
-    margin: 0 0 0.25rem 0;
-    line-height: 1.12;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.3rem 0;
+    line-height: 1.15;
 }}
 .hero-title span {{
-    background: linear-gradient(100deg, {GOLD_DK} 0%, {GOLD} 40%, {GOLD_LT} 70%, {CREAM} 100%);
+    background: linear-gradient(90deg, {GOLD} 0%, {GOLD_LT} 60%, {SILVER} 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
 }}
 .hero-subtitle {{
-    font-size: 0.95rem;
+    font-size: 1.0rem;
     color: {TEXT2};
     margin: 0;
     font-weight: 400;
-    letter-spacing: 0.01em;
-}}
-/* Logo tagline strip in hero */
-.hero-tagline {{
-    font-size: 0.68rem;
-    letter-spacing: 0.22em;
-    color: {GOLD_DK};
-    text-transform: uppercase;
-    margin-bottom: 0.7rem;
-    font-weight: 600;
 }}
 
 /* Info panel */
 .info-panel {{
-    background: linear-gradient(145deg, {CARD} 0%, {CARD2} 100%);
+    background: linear-gradient(135deg, {CARD} 0%, {CARD2} 100%);
     border: 1px solid {BORDER};
     border-radius: 14px;
     padding: 1.3rem 1.5rem;
 }}
 .info-panel-title {{
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     color: {TEXT2};
     text-transform: uppercase;
-    letter-spacing: 0.10em;
+    letter-spacing: 0.08em;
     margin-bottom: 0.9rem;
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    font-weight: 600;
 }}
 
 /* Gold divider */
 .gold-divider {{
-    height: 1px;
-    background: linear-gradient(90deg, transparent, {GOLD_DK} 35%, {GOLD} 50%, {GOLD_DK} 65%, transparent);
+    height: 2px;
+    background: linear-gradient(90deg, transparent, {GOLD_DK}, transparent);
     border: none;
-    margin: 1.6rem 0;
-    opacity: 0.6;
+    margin: 1.5rem 0;
 }}
 
 /* Explanation text area */
@@ -528,11 +439,11 @@ hr {{
     background: linear-gradient(145deg, {CARD} 0%, {CARD2} 100%);
     border: 1px solid {BORDER};
     border-left: 3px solid {GOLD};
-    border-radius: 0 12px 12px 0;
+    border-radius: 12px;
     padding: 1.5rem;
     color: {TEXT};
-    line-height: 1.75;
-    font-size: 0.89rem;
+    line-height: 1.7;
+    font-size: 0.9rem;
 }}
 
 /* Step card */
@@ -541,20 +452,16 @@ hr {{
     border: 1px solid {BORDER};
     border-radius: 12px;
     padding: 1rem 1.2rem;
-    margin-bottom: 0.65rem;
+    margin-bottom: 0.7rem;
     display: flex;
     gap: 1rem;
     align-items: flex-start;
-    transition: border-color 0.2s;
-}}
-.step-card:hover {{
-    border-color: {BORDER2};
 }}
 .step-num {{
     background: linear-gradient(135deg, {GOLD} 0%, {GOLD_DK} 100%);
-    color: #0C0A07;
+    color: #0A0906;
     font-weight: 800;
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     width: 26px;
     height: 26px;
     border-radius: 50%;
@@ -562,62 +469,56 @@ hr {{
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    font-family: 'Inter', sans-serif;
 }}
 
 /* Form section header */
 .form-section {{
-    background: linear-gradient(90deg, rgba(201,169,107,0.07), transparent);
+    background: linear-gradient(90deg, rgba(196,168,122,0.08), transparent);
     border-left: 3px solid {GOLD_DK};
     border-radius: 0 8px 8px 0;
     padding: 0.5rem 1rem;
-    margin: 1.2rem 0 0.85rem 0;
-    font-size: 0.72rem;
+    margin: 1.2rem 0 0.8rem 0;
+    font-size: 0.85rem;
     font-weight: 600;
     color: {GOLD_LT};
     text-transform: uppercase;
-    letter-spacing: 0.10em;
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
+    letter-spacing: 0.06em;
 }}
 
 /* Success submit card */
 .submit-success {{
-    background: linear-gradient(135deg, #192A1F 0%, #122018 100%);
-    border: 1px solid rgba(92,140,106,0.32);
-    border-radius: 18px;
-    padding: 2rem;
+    background: linear-gradient(135deg, #1A2B20 0%, #14221A 100%);
+    border: 1px solid rgba(92,140,106,0.35);
+    border-radius: 16px;
+    padding: 1.8rem;
     text-align: center;
 }}
 
 /* Stat pill */
 .stat-pill {{
-    background: rgba(201,169,107,0.09);
-    border: 1px solid rgba(201,169,107,0.22);
+    background: rgba(196,168,122,0.10);
+    border: 1px solid rgba(196,168,122,0.20);
     border-radius: 20px;
-    padding: 5px 15px;
-    font-size: 0.76rem;
+    padding: 4px 14px;
+    font-size: 0.78rem;
     color: {GOLD_LT};
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    letter-spacing: 0.02em;
+    display: inline-block;
 }}
 
-/* Dashboard chart card */
+/* Dashboard chart card wrapper */
 .chart-card {{
     background: linear-gradient(145deg, {CARD} 0%, {CARD2} 100%);
     border: 1px solid {BORDER};
     border-radius: 16px;
     padding: 1.2rem 1.2rem 0.8rem;
+    margin-bottom: 0;
 }}
 .chart-title {{
-    font-size: 0.76rem;
+    font-size: 0.82rem;
     font-weight: 600;
     color: {TEXT2};
     text-transform: uppercase;
-    letter-spacing: 0.09em;
+    letter-spacing: 0.07em;
     margin-bottom: 0.5rem;
 }}
 
@@ -629,20 +530,8 @@ hr {{
     padding: 0.65rem 0;
     border-bottom: 1px solid {BORDER};
 }}
-.activity-dot-approved {{ width:8px; height:8px; border-radius:50%; background:{SUCCESS}; flex-shrink:0; }}
-.activity-dot-rejected {{ width:8px; height:8px; border-radius:50%; background:{DANGER};  flex-shrink:0; }}
-
-/* Cream accent chip */
-.cream-chip {{
-    display: inline-block;
-    background: rgba(237,227,213,0.08);
-    border: 1px solid rgba(237,227,213,0.18);
-    border-radius: 6px;
-    padding: 2px 10px;
-    font-size: 0.72rem;
-    color: {CREAM};
-    letter-spacing: 0.04em;
-}}
+.activity-dot-approved {{ width:9px; height:9px; border-radius:50%; background:{SUCCESS}; flex-shrink:0; }}
+.activity-dot-rejected {{ width:9px; height:9px; border-radius:50%; background:{DANGER};  flex-shrink:0; }}
 </style>
 """
 
@@ -653,70 +542,42 @@ def inject():
 
 
 def sidebar_logo():
-    """Render the LAPAS logo + wordmark + tagline in the sidebar, centered."""
-    import base64 as _b64
-    # Encode logo as base64 so we can center it with CSS text-align
-    _logo_b64 = ""
+    """Render the LAPAS logo + wordmark in the sidebar."""
     try:
-        with open(_LOGO_PATH, 'rb') as _f:
-            _logo_b64 = _b64.b64encode(_f.read()).decode()
+        st.sidebar.image("assets/logo.png", width=90)
     except Exception:
         pass
-
-    if _logo_b64:
-        st.sidebar.markdown(
-            f'<div style="text-align:center;padding:0.8rem 0 0.2rem;">'
-            f'<img src="data:image/png;base64,{_logo_b64}" width="130" '
-            f'style="border-radius:14px;'
-            f'filter:drop-shadow(0 4px 14px rgba(201,169,107,0.18));">'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-    else:
-        st.sidebar.markdown(
-            f'<div style="text-align:center;padding:1rem 0 0.4rem;">'
-            f'<span style="font-family:\'Playfair Display\',Georgia,serif;'
-            f'font-size:2.2rem;font-weight:700;color:{GOLD};">LA</span></div>',
-            unsafe_allow_html=True,
-        )
-
-    # Wordmark + tagline
     st.sidebar.markdown(
-        f'<div style="text-align:center;margin-top:4px;margin-bottom:4px;">'
-        f'<div style="font-family:\'Playfair Display\',Georgia,serif;'
-        f'font-size:1.25rem;font-weight:700;'
-        f'background:linear-gradient(100deg,{GOLD_DK},{GOLD},{GOLD_LT});'
-        f'-webkit-background-clip:text;-webkit-text-fill-color:transparent;'
-        f'background-clip:text;letter-spacing:0.16em;margin-bottom:3px;">LAPAS</div>'
-        f'<div style="font-size:0.56rem;color:{GOLD_DK};letter-spacing:0.20em;'
-        f'text-transform:uppercase;font-weight:600;">'
-        f'Predict &middot; Advise &middot; Approve</div>'
-        f'</div>',
-        unsafe_allow_html=True,
+        f"""<div style="text-align:center; margin-top:-8px; margin-bottom:12px;">
+        <span style="font-size:1.1rem;font-weight:800;
+        background:linear-gradient(90deg,{GOLD},{GOLD_LT});
+        -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+        letter-spacing:0.12em;">LAPAS</span>
+        <div style="font-size:0.65rem;color:{TEXT3};letter-spacing:0.06em;margin-top:1px;">
+        Loan Approval Prediction & Advisory System</div></div>""",
+        unsafe_allow_html=True
     )
-    st.sidebar.markdown(
-        f'<hr style="border:none;border-top:1px solid {BORDER};margin:10px 0 12px;">',
-        unsafe_allow_html=True,
-    )
+    st.sidebar.markdown(f'<hr style="border-color:{BORDER};margin:4px 0 10px;">', unsafe_allow_html=True)
 
 
 # ── Plotly chart base layout (shared across all pages) ────────────────────────
 CHART_LAYOUT = dict(
     paper_bgcolor='rgba(0,0,0,0)',
-    plot_bgcolor='rgba(20,18,14,0.50)',
+    plot_bgcolor='rgba(22,19,16,0.55)',
     font=dict(color=TEXT2, family='Inter, sans-serif', size=11),
-    title_font=dict(color=TEXT, size=13, family='Inter, sans-serif'),
+    title_font=dict(color=TEXT, size=14, family='Inter, sans-serif'),
     legend=dict(bgcolor='rgba(0,0,0,0)', font=dict(color=TEXT2, size=10)),
     xaxis=dict(gridcolor=BORDER, tickcolor=TEXT3, linecolor=BORDER, color=TEXT2, showgrid=True),
     yaxis=dict(gridcolor=BORDER, tickcolor=TEXT3, linecolor=BORDER, color=TEXT2, showgrid=True),
     margin=dict(l=10, r=10, t=40, b=10),
     colorway=[GOLD, SILVER, SUCCESS, DANGER, '#7A8FBB', '#B87A9A', '#7ABB9A'],
-    hoverlabel=dict(bgcolor=CARD2, font_color=TEXT, bordercolor=BORDER2),
+    hoverlabel=dict(bgcolor=CARD2, font_color=TEXT, bordercolor=BORDER),
 )
 
 
 def apply_chart_layout(fig, title: str = '', height: int = 320):
     """Apply the LAPAS dark theme to any Plotly figure."""
+    import plotly.graph_objects as go
     fig.update_layout(
         **CHART_LAYOUT,
         title=dict(text=title, font=dict(color=TEXT, size=13), x=0.01, xanchor='left'),

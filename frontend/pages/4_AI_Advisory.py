@@ -10,28 +10,29 @@ import pandas as pd
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from styles.theme import (inject, sidebar_logo, get_logo_image, apply_chart_layout,
+from styles.theme import (inject, sidebar_logo, apply_chart_layout,
                            GOLD, GOLD_LT, GOLD_DK, SILVER,
                            TEXT, TEXT2, TEXT3, CARD, CARD2,
                            BORDER, SUCCESS, SUCCESS_LT, DANGER, DANGER_LT)
 CARD3 = CARD2
-from styles.icons import icon as _icon
-from utils import api_client
-from utils.mock_data import intent_label, intent_icon, risk_color
+from utils.mock_data import get_data, intent_label, intent_icon, risk_color
 
-st.set_page_config(page_title="LAPAS – AI Advisory", page_icon=get_logo_image() or "L", layout="wide")
+# fix CARD3 import
+try:
+    from styles.theme import CARD3
+except ImportError:
+    from styles.theme import CARD as CARD3
+
+st.set_page_config(page_title="LAPAS – AI Advisory", page_icon="🤖", layout="wide")
 inject()
 sidebar_logo()
 
-df, using_mock = api_client.get_applicants_safe()
-if using_mock:
-    st.warning("Backend unavailable — showing sample data.")
+df = get_data()
 
 # ── Page header ────────────────────────────────────────────────────────────────
 st.markdown(f"""
-<div style="margin-bottom:1rem;display:flex;align-items:center;gap:0.6rem;">
-  {_icon('cpu-chip',26,GOLD)}
-  <span style="font-size:1.5rem;font-weight:800;color:{TEXT};">AI Advisory</span>
+<div style="margin-bottom:1rem;">
+  <span style="font-size:1.5rem;font-weight:800;color:{TEXT};">🤖 AI Advisory</span>
   <span style="font-size:0.84rem;color:{TEXT3};margin-left:0.8rem;">
     SHAP attribution · Policy-grounded explanation · Export report</span>
 </div>
@@ -51,7 +52,7 @@ selected = st.selectbox("Select Applicant", all_ids, index=preselect,
 if selected == "— Select an applicant —":
     st.markdown(f"""
     <div style="text-align:center;padding:4rem;color:{TEXT3};">
-      <div style="margin-bottom:0.8rem;">{_icon('magnifying-glass',52,TEXT3)}</div>
+      <div style="font-size:3rem;margin-bottom:0.5rem;">🔍</div>
       <div style="font-size:1rem;font-weight:600;color:{TEXT2};">
         Select an applicant above to generate their advisory report.</div>
       <div style="font-size:0.82rem;margin-top:0.3rem;">
@@ -70,8 +71,8 @@ risk_col  = {
     'Medium': GOLD_LT,
     'High':   DANGER_LT,
 }.get(row['risk_tier'], TEXT2)
-badge     = (f'<span class="badge-approved">Approved</span>'
-             if approved else f'<span class="badge-rejected">Rejected</span>')
+badge     = (f'<span class="badge-approved">✓ Approved</span>'
+             if approved else f'<span class="badge-rejected">✗ Rejected</span>')
 
 # ── Profile card ──────────────────────────────────────────────────────────────
 st.markdown(f"""
@@ -105,9 +106,9 @@ st.markdown(f"""
       </div>'''
       for lbl, val in [
         ("Age",          f"{int(row['person_age'])} yrs"),
-        ("Income",       f"R{row['person_income']:,.0f}"),
+        ("Income",       f"${row['person_income']:,.0f}"),
         ("Credit Score", f"{int(row['credit_score'])} ({row['credit_score_tier']})"),
-        ("Loan Amount",  f"R{row['loan_amnt']:,.0f}"),
+        ("Loan Amount",  f"${row['loan_amnt']:,.0f}"),
         ("Purpose",      f"{intent_icon(row['loan_intent'])} {intent_label(row['loan_intent'])}"),
         ("Grade",        f"{row['loan_grade']} · {row['loan_int_rate']:.1f}%"),
       ]
@@ -117,16 +118,26 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ── Three tabs ────────────────────────────────────────────────────────────────
-t1, t2, t3 = st.tabs(["Feature Attribution (LIME)", "AI Explanation", "Next Steps"])
+t1, t2, t3 = st.tabs(["📊 SHAP Attribution", "📋 AI Explanation", "🎯 Next Steps"])
 
-# ─── Tab 1: Feature Attribution ───────────────────────────────────────────────
+# ─── Tab 1: SHAP ──────────────────────────────────────────────────────────────
 with t1:
-    from src.ai_advisor.loan_context_builder import _readable_name as nice_name
     shap_dict = row['shap_values']
 
     # Sort by absolute value
     sorted_shap = dict(sorted(shap_dict.items(), key=lambda x: x[1]))
-    nice_names = {k: nice_name(k) for k in shap_dict}
+    nice_names = {
+        'credit_score': 'Credit Score',
+        'loan_percent_income': 'Loan % of Income',
+        'previous_loan_defaults_on_file': 'Prior Defaults',
+        'person_income': 'Annual Income',
+        'loan_int_rate': 'Interest Rate',
+        'person_emp_exp': 'Employment Years',
+        'debt_to_income_ratio': 'Debt-to-Income Ratio',
+        'cb_person_cred_hist_length': 'Credit History Length',
+        'loan_amnt': 'Loan Amount',
+        'person_age': 'Applicant Age',
+    }
     labels = [nice_names.get(k, k) for k in sorted_shap.keys()]
     values = list(sorted_shap.values())
     colors = [SUCCESS if v > 0 else DANGER for v in values]
@@ -139,46 +150,49 @@ with t1:
             text=[f"{'+'if v>0 else ''}{v:.4f}" for v in values],
             textposition='outside',
             textfont=dict(color=TEXT2, size=10, family='Courier New'),
-            hovertemplate="%{y}<br>LIME weight: %{x:.4f}<extra></extra>",
+            hovertemplate="%{y}<br>SHAP value: %{x:.4f}<extra></extra>",
         ))
         fig.add_vline(x=0, line_color=BORDER, line_width=1.5)
         apply_chart_layout(fig,
-            f"LIME Feature Attribution – APP-{row['id']} ({row['predicted_outcome'].capitalize()})",
+            f"SHAP Feature Attribution – APP-{row['id']} ({row['predicted_outcome'].capitalize()})",
             height=360)
         fig.update_layout(showlegend=False,
                           xaxis=dict(zeroline=False, showgrid=True))
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
     with sb:
-        top5 = list(sorted(shap_dict.items(), key=lambda x: abs(x[1]), reverse=True))[:5]
-        _driver_rows = ""
-        for k, v in top5:
-            col = SUCCESS_LT if v > 0 else DANGER_LT
-            sign = "+" if v > 0 else ""
-            _driver_rows += (
-                f'<div style="display:flex;justify-content:space-between;'
-                f'padding:0.4rem 0;border-bottom:1px solid {BORDER};font-size:0.82rem;">'
-                f'<span style="color:{TEXT2};">{nice_names.get(k, k)}</span>'
-                f'<span style="color:{col};font-weight:600;font-family:monospace;">'
-                f'{sign}{v:.4f}</span></div>'
-            )
-        st.markdown(
-            f'<div class="info-panel">'
-            f'<div class="info-panel-title">{_icon("information-circle",14,GOLD_LT)} How to Read This Chart</div>'
-            f'<div style="font-size:0.82rem;color:{TEXT2};line-height:1.65;">'
-            f'Each bar shows how much a feature pushed the prediction toward '
-            f'<b style="color:{SUCCESS_LT};">approval</b> (positive, right) '
-            f'or <b style="color:{DANGER_LT};">rejection</b> (negative, left).<br><br>'
-            f'<b style="color:{GOLD_LT};">LIME</b> (Local Interpretable Model-agnostic '
-            f'Explanations) fits a simple, local surrogate model around this one '
-            f'applicant to estimate how much each feature moved the prediction — '
-            f'this project uses LIME rather than SHAP (see requirements.txt) because '
-            f'SHAP\'s numba/llvmlite dependency is unstable on this platform.</div></div><br>'
-            f'<div class="info-panel">'
-            f'<div class="info-panel-title">{_icon("trophy",14,GOLD_LT)} Top Drivers</div>'
-            f'{_driver_rows}</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(f"""
+        <div class="info-panel">
+          <div class="info-panel-title">📌 How to Read This Chart</div>
+          <div style="font-size:0.82rem;color:{TEXT2};line-height:1.65;">
+            Each bar shows how much a feature pushed the prediction toward
+            <b style="color:{SUCCESS_LT};">approval</b> (positive, right)
+            or <b style="color:{DANGER_LT};">rejection</b> (negative, left).<br><br>
+            <b style="color:{GOLD_LT};">SHAP values</b> are based on the Shapley
+            additive explanation method, which fairly distributes credit among
+            all input features.<br><br>
+            The sum of all SHAP values equals the model's log-odds output relative
+            to the base-rate expectation.
+          </div>
+        </div>
+        <br>
+        <div class="info-panel">
+          <div class="info-panel-title">🏆 Top Drivers</div>
+          {''.join([
+            f"""<div style="display:flex;justify-content:space-between;
+                padding:0.4rem 0;border-bottom:1px solid {BORDER};
+                font-size:0.82rem;">
+              <span style="color:{TEXT2};">{nice_names.get(k,k)}</span>
+              <span style="color:{'%s'%SUCCESS_LT if v>0 else '%s'%DANGER_LT};
+              font-weight:600;font-family:monospace;">
+                {'+'if v>0 else ''}{v:.4f}</span>
+            </div>"""
+            for k, v in list(
+                sorted(shap_dict.items(), key=lambda x: abs(x[1]), reverse=True)
+            )[:5]
+          ])}
+        </div>
+        """, unsafe_allow_html=True)
 
 # ─── Tab 2: AI Explanation ────────────────────────────────────────────────────
 with t2:
@@ -188,27 +202,19 @@ with t2:
         if 'generated' not in st.session_state:
             st.session_state['generated'] = {}
 
-        retriever_choice = st.selectbox(
-            "Retriever", ["tfidf", "vector"], key=f"retriever_{app_id}",
-            format_func=lambda r: "TF-IDF" if r == "tfidf" else "Dense Embedding (Chroma)",
-        )
-        gen_key = f"gen_{app_id}_{retriever_choice}"
-
+        gen_key = f"gen_{app_id}"
         if gen_key not in st.session_state['generated']:
             st.markdown(f"""
             <div style="text-align:center;padding:2rem;color:{TEXT2};">
-              <div style="margin-bottom:0.7rem;">{_icon('cpu-chip',40,TEXT3)}</div>
+              <div style="font-size:2rem;margin-bottom:0.5rem;">🤖</div>
               <div style="font-size:0.9rem;">Click the button to generate the AI advisory explanation.</div>
             </div>
             """, unsafe_allow_html=True)
-            if st.button("Generate Advisory Explanation", use_container_width=False):
-                try:
-                    with st.spinner("Generating policy-grounded explanation…"):
-                        result = api_client.generate_advisory(app_id, retriever=retriever_choice)
-                    st.session_state['generated'][gen_key] = result['report']
-                    st.rerun()
-                except api_client.BackendUnavailable as exc:
-                    st.error(f"Could not reach the advisory backend: {exc}")
+            if st.button("⚡  Generate Advisory Explanation", use_container_width=False):
+                with st.spinner("Generating policy-grounded explanation..."):
+                    import time; time.sleep(1.2)   # simulate inference
+                    st.session_state['generated'][gen_key] = row['llm_response']
+                st.rerun()
         else:
             explanation = st.session_state['generated'][gen_key]
             st.markdown(
@@ -216,34 +222,37 @@ with t2:
                 unsafe_allow_html=True)
 
     with e2:
-        _policy_sources = [
-            (_icon('clipboard-list', 16, GOLD_LT), 'FATF KYC Guidelines 2023', 'Section 4.2 – Customer Due Diligence'),
-            (_icon('building-library', 16, GOLD_LT), 'Basel III Framework 2017', 'Article 147 – Exposure Thresholds'),
-            (_icon('shield-check', 16, GOLD_LT), 'POPIA Act 2020', 'Section 5.1 – Data Minimisation'),
-        ]
-        _src_rows = "".join(
-            f'<div style="display:flex;gap:0.6rem;align-items:flex-start;'
-            f'padding:0.5rem 0;border-bottom:1px solid {BORDER};">'
-            f'<div style="flex-shrink:0;margin-top:1px;">{si}</div>'
-            f'<div><div style="font-size:0.8rem;font-weight:600;color:{TEXT};">{s}</div>'
-            f'<div style="font-size:0.72rem;color:{TEXT3};">{sec}</div></div></div>'
-            for si, s, sec in _policy_sources
-        )
-        _algo = str(row.get('model_algorithm') or 'unknown').replace('_', ' ').title()
-        _retriever_label = "TF-IDF" if retriever_choice == "tfidf" else "Dense Embedding (Chroma)"
-        st.markdown(
-            f'<div class="info-panel">'
-            f'<div class="info-panel-title">{_icon("book-open",14,GOLD_LT)} Policy Sources Used</div>'
-            f'{_src_rows}</div><br>'
-            f'<div class="info-panel">'
-            f'<div class="info-panel-title">{_icon("cog-6-tooth",14,GOLD_LT)} Model Details</div>'
-            f'<div style="font-size:0.8rem;color:{TEXT2};line-height:1.7;">'
-            f'<b>Classifier:</b> {_algo} (champion)<br>'
-            f'<b>LLM:</b> Mistral-7B-Instruct v0.2<br>'
-            f'<b>Retriever:</b> {_retriever_label}<br>'
-            f'<b>Chunks retrieved:</b> Top-5</div></div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(f"""
+        <div class="info-panel">
+          <div class="info-panel-title">📚 Policy Sources Used</div>
+          {''.join([
+            f"""<div style="display:flex;gap:0.6rem;align-items:flex-start;
+                padding:0.5rem 0;border-bottom:1px solid {BORDER};">
+              <span style="font-size:1rem;flex-shrink:0;">{icon}</span>
+              <div>
+                <div style="font-size:0.8rem;font-weight:600;color:{TEXT};">{src}</div>
+                <div style="font-size:0.72rem;color:{TEXT3};">{sec}</div>
+              </div>
+            </div>"""
+            for icon, src, sec in [
+              ('📋', 'FATF KYC Guidelines 2023', 'Section 4.2 – Customer Due Diligence'),
+              ('🏦', 'Basel III Framework 2017', 'Article 147 – Exposure Thresholds'),
+              ('🛡️', 'POPIA Act 2020',           'Section 5.1 – Data Minimisation'),
+            ]
+          ])}
+        </div>
+        <br>
+        <div class="info-panel">
+          <div class="info-panel-title">⚙️ Model Details</div>
+          <div style="font-size:0.8rem;color:{TEXT2};line-height:1.7;">
+            <b>Classifier:</b> Gradient Boosting (champion)<br>
+            <b>LLM:</b> Mistral-7B-Instruct v0.2<br>
+            <b>Retriever:</b> TF-IDF (primary)<br>
+            <b>Chunks retrieved:</b> Top-5<br>
+            <b>Retrieval quality:</b> 0.84
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ─── Tab 3: Next Steps ────────────────────────────────────────────────────────
 with t3:
@@ -261,14 +270,14 @@ with t3:
              f"Your current rate of {row['loan_int_rate']:.1f}% may be refinanceable after 12 months of clean repayment history."),
         ]
         header_colour = SUCCESS
-        header_icon   = _icon('check-circle', 22, SUCCESS_LT)
+        header_icon   = "✅"
         intro = "Your application has been approved. Follow these steps to make the most of your loan."
     else:
         steps = [
             ("Improve your credit score",
              f"Target a score above 670 (currently {int(row['credit_score'])}). Pay all bills on time and reduce outstanding balances. Allow 6-12 months for improvements to register."),
             ("Reduce your loan amount",
-             f"Consider re-applying for R{max(500, row['loan_amnt'] * 0.65):,.0f} (35% reduction). This improves your loan-to-income ratio from {row['loan_percent_income']*100:.1f}% toward the 20% target."),
+             f"Consider re-applying for ${max(500, row['loan_amnt'] * 0.65):,.0f} (35% reduction). This improves your loan-to-income ratio from {row['loan_percent_income']*100:.1f}% toward the 20% target."),
             ("Increase documented income",
              "Additional income streams, a salary increase letter, or a co-applicant strengthens the income profile used in credit assessment."),
             ("Resolve any prior defaults",
@@ -277,51 +286,43 @@ with t3:
              "Allow time for credit score improvements and for any defaults to reduce in recency. A new application after genuine improvement will be assessed on the updated profile."),
         ]
         header_colour = DANGER
-        header_icon   = _icon('arrow-trending-up', 22, DANGER_LT)
+        header_icon   = "🎯"
         intro = "Your application was not approved at this time. The following steps can improve your eligibility."
 
-    _step_rows = "".join(
-        f'<div class="step-card">'
-        f'<div class="step-num">{i+1}</div>'
-        f'<div>'
-        f'<div style="font-size:0.88rem;font-weight:600;color:{TEXT};margin-bottom:3px;">{title}</div>'
-        f'<div style="font-size:0.81rem;color:{TEXT2};line-height:1.6;">{detail}</div>'
-        f'</div></div>'
-        for i, (title, detail) in enumerate(steps)
-    )
-    _hdr_bg = "linear-gradient(135deg,#1E3228,#162A20)" if approved else "linear-gradient(135deg,#2A1A1C,#221518)"
-    st.markdown(
-        f'<div style="background:linear-gradient(135deg,{CARD} 0%,{CARD2} 100%);'
-        f'border:1px solid {BORDER};border-radius:16px;overflow:hidden;margin-bottom:1.2rem;">'
-        f'<div style="background:{_hdr_bg};padding:1rem 1.4rem;">'
-        f'<div style="font-size:1rem;font-weight:700;color:{TEXT};display:flex;align-items:center;gap:0.5rem;">'
-        f'{header_icon} Recommended Next Steps</div>'
-        f'<div style="font-size:0.82rem;color:{TEXT2};margin-top:4px;">{intro}</div>'
-        f'</div><div style="padding:1.2rem 1.4rem;">{_step_rows}</div></div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,{CARD} 0%,{CARD2} 100%);
+                border:1px solid {BORDER};border-radius:16px;overflow:hidden;
+                margin-bottom:1.2rem;">
+      <div style="background:{'linear-gradient(135deg,#1E3228,#162A20)' if approved
+                  else 'linear-gradient(135deg,#2A1A1C,#221518)'};
+                  padding:1rem 1.4rem;">
+        <div style="font-size:1rem;font-weight:700;color:{TEXT};">
+          {header_icon} Recommended Next Steps</div>
+        <div style="font-size:0.82rem;color:{TEXT2};margin-top:4px;">{intro}</div>
+      </div>
+      <div style="padding:1.2rem 1.4rem;">
+        {''.join([
+          f"""<div class="step-card">
+            <div class="step-num">{i+1}</div>
+            <div>
+              <div style="font-size:0.88rem;font-weight:600;color:{TEXT};margin-bottom:3px;">
+                {title}</div>
+              <div style="font-size:0.81rem;color:{TEXT2};line-height:1.6;">{detail}</div>
+            </div>
+          </div>"""
+          for i, (title, detail) in enumerate(steps)
+        ])}
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # ── PDF Export ────────────────────────────────────────────────────────────
     st.markdown('<div class="gold-divider"></div>', unsafe_allow_html=True)
-    st.markdown(f'<div style="font-size:0.82rem;color:{TEXT2};margin-bottom:0.6rem;display:flex;align-items:center;gap:0.4rem;">'
-                f'{_icon("document-arrow-down",15,TEXT2)} Export this advisory report as a PDF or text file.</div>',
+    st.markdown(f'<div style="font-size:0.82rem;color:{TEXT2};margin-bottom:0.6rem;">'
+                f'📄 Export this advisory report as a PDF or text file.</div>',
                 unsafe_allow_html=True)
 
     pdf_col, txt_col, _ = st.columns([1, 1, 3])
-
-    # The AI explanation may not have been generated yet if the user jumped
-    # straight to this tab — generate it now (tfidf default) so export always works.
-    _gen_keys = [k for k in st.session_state.get('generated', {}) if k.startswith(f"gen_{app_id}_")]
-    if _gen_keys:
-        explanation_text = st.session_state['generated'][_gen_keys[0]]
-    else:
-        try:
-            with st.spinner("Generating advisory explanation for export…"):
-                _result = api_client.generate_advisory(app_id, retriever="tfidf")
-            explanation_text = _result['report']
-            st.session_state.setdefault('generated', {})[f"gen_{app_id}_tfidf"] = explanation_text
-        except api_client.BackendUnavailable:
-            explanation_text = "_AI advisory explanation unavailable (backend unreachable)._"
 
     # Build text report content
     report_lines = [
@@ -337,26 +338,37 @@ with t3:
         "APPLICANT PROFILE",
         "-" * 40,
         f"Age           : {int(row['person_age'])}",
-        f"Income        : R{row['person_income']:,.0f}",
+        f"Income        : ${row['person_income']:,.0f}",
         f"Credit Score  : {int(row['credit_score'])} ({row['credit_score_tier']})",
-        f"Loan Amount   : R{row['loan_amnt']:,.0f}",
+        f"Loan Amount   : ${row['loan_amnt']:,.0f}",
         f"Loan Purpose  : {intent_label(row['loan_intent'])}",
         f"Loan Grade    : {row['loan_grade']}",
         f"Interest Rate : {row['loan_int_rate']:.1f}%",
         "",
-        "TOP FEATURE ATTRIBUTIONS (LIME)",
+        "TOP SHAP FEATURE ATTRIBUTIONS",
         "-" * 40,
     ]
-    from src.ai_advisor.loan_context_builder import _readable_name as _nice_name
+    nice_names = {
+        'credit_score': 'Credit Score',
+        'loan_percent_income': 'Loan % of Income',
+        'previous_loan_defaults_on_file': 'Prior Defaults',
+        'person_income': 'Annual Income',
+        'loan_int_rate': 'Interest Rate',
+        'person_emp_exp': 'Employment Years',
+        'debt_to_income_ratio': 'Debt-to-Income Ratio',
+        'cb_person_cred_hist_length': 'Credit History Length',
+        'loan_amnt': 'Loan Amount',
+        'person_age': 'Applicant Age',
+    }
     for feat, val in sorted(row['shap_values'].items(), key=lambda x: abs(x[1]), reverse=True):
         direction = "positive" if val > 0 else "negative"
-        report_lines.append(f"  {_nice_name(feat):<30} {'+' if val>0 else ''}{val:.4f} ({direction})")
+        report_lines.append(f"  {nice_names.get(feat, feat):<30} {'+' if val>0 else ''}{val:.4f} ({direction})")
 
     report_lines += [
         "",
         "AI ADVISORY EXPLANATION",
         "-" * 40,
-        explanation_text,
+        row['llm_response'],
         "",
         "RECOMMENDED NEXT STEPS",
         "-" * 40,
@@ -376,7 +388,7 @@ with t3:
 
     with txt_col:
         st.download_button(
-            label="Download Report (.txt)",
+            label="📄 Download Report (.txt)",
             data=report_text,
             file_name=f"LAPAS_Advisory_APP-{row['id']}.txt",
             mime="text/plain",
@@ -388,17 +400,6 @@ with t3:
         try:
             from fpdf import FPDF
             import io
-
-            def _pdf_safe(text: str) -> str:
-                # Helvetica (core font) is latin-1 only; strip characters
-                # outside that range (em-dashes, curly quotes, middots) that
-                # can appear in LLM-generated or policy-doc text.
-                for old, new in {
-                    "–": "-", "—": "-", "‘": "'", "’": "'",
-                    "“": '"', "”": '"', "·": "*", "…": "...",
-                }.items():
-                    text = text.replace(old, new)
-                return text.encode("latin-1", errors="replace").decode("latin-1")
 
             def build_pdf():
                 pdf = FPDF()
@@ -437,9 +438,9 @@ with t3:
                 sections = [
                     ("Applicant Profile", [
                         ("Age", f"{int(row['person_age'])} yrs"),
-                        ("Income", f"R{row['person_income']:,.0f}"),
+                        ("Income", f"${row['person_income']:,.0f}"),
                         ("Credit Score", f"{int(row['credit_score'])} ({row['credit_score_tier']})"),
-                        ("Loan Amount", f"R{row['loan_amnt']:,.0f}"),
+                        ("Loan Amount", f"${row['loan_amnt']:,.0f}"),
                         ("Purpose", intent_label(row['loan_intent'])),
                         ("Loan Grade", row['loan_grade']),
                     ]),
@@ -469,22 +470,22 @@ with t3:
                 pdf.set_font("Helvetica", "", 8.5)
                 pdf.set_text_color(30, 27, 24)
                 # Strip markdown
-                clean_exp = explanation_text.replace('**','').replace('*','').replace('#','')
-                pdf.multi_cell(0, 5.5, _pdf_safe(clean_exp[:2500]))
+                clean_exp = row['llm_response'].replace('**','').replace('*','').replace('#','')
+                pdf.multi_cell(0, 5.5, clean_exp[:2500])
 
                 # Footer
                 pdf.set_y(-25)
                 pdf.set_font("Helvetica", "I", 8)
                 pdf.set_text_color(100, 94, 88)
-                pdf.cell(0, 5, _pdf_safe("LAPAS – University of Johannesburg | Honours Year Project 2026"),
+                pdf.cell(0, 5, "LAPAS – University of Johannesburg | Honours Year Project 2026",
                          align='C', ln=True)
-                pdf.cell(0, 5, _pdf_safe("Policy: FATF KYC 2023 · Basel III Art.147 · POPIA 2020"),
+                pdf.cell(0, 5, "Policy: FATF KYC 2023 · Basel III Art.147 · POPIA 2020",
                          align='C', ln=True)
                 return bytes(pdf.output())
 
             pdf_bytes = build_pdf()
             st.download_button(
-                label="Export as PDF",
+                label="📑 Export as PDF",
                 data=pdf_bytes,
                 file_name=f"LAPAS_Advisory_APP-{row['id']}.pdf",
                 mime="application/pdf",

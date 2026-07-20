@@ -1,14 +1,4 @@
 import os
-
-# macOS Intel: xgboost's OpenMP runtime and torch/sentence-transformers'
-# OpenMP runtime contend for the same libomp.dylib when both are loaded in one
-# process (backend/deps.py loads both the xgboost classifier and, lazily, the
-# VectorStore). Without this, encoding a query with SentenceTransformer hangs
-# indefinitely (confirmed) instead of returning. Must be set before torch is
-# ever imported, so it lives at the very top of this always-imported-first module.
-os.environ.setdefault("OMP_NUM_THREADS", "1")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-
 from dotenv import load_dotenv
 from pathlib import Path
 from loguru import logger
@@ -96,14 +86,6 @@ RANDOM_STATE = int(os.getenv('RANDOM_STATE', '42'))
 CV_FOLDS = int(os.getenv('CV_FOLDS', '5'))
 # Minimum confidence threshold for classification
 MIN_CONFIDENCE_THRESHOLD = float(os.getenv('MIN_CONFIDENCE_THRESHOLD', '0.5'))
-
-# Path to the best model artefact — written by scripts/train_model.py after
-# each training run and read by the app at inference time
-BEST_MODEL_PATH = MODELS_DIR / 'best_model.joblib'
-
-# Metric used to crown the best model during training.
-# Any metric returned by src.classifier.evaluate.evaluate_classifier() is valid.
-MODEL_SELECTION_METRIC = os.getenv('MODEL_SELECTION_METRIC', 'roc_auc')
 
 
 # Similarity threshold for near-duplicate detection
@@ -193,9 +175,8 @@ __all__ = [
     'DATA_DIR',
     'MODELS_DIR',
     'LOGS_DIR',
-    'BEST_MODEL_PATH',
-    'MODEL_SELECTION_METRIC',
-    'get_model_config',
+    'get_model_config'
+    'KAGGLE_TRAIN_DATASET'
 ]
 from loguru import logger
 

@@ -8,22 +8,18 @@ import streamlit as st
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from styles.theme import inject, sidebar_logo, get_logo_image, GOLD, GOLD_LT, GOLD_DK
+from styles.theme import inject, sidebar_logo, GOLD, GOLD_LT, GOLD_DK
 from styles.theme import TEXT, TEXT2, TEXT3, CARD, CARD2, BORDER, SUCCESS, SUCCESS_LT, DANGER, DANGER_LT
-from styles.icons import icon as _icon
-from utils import api_client
-from utils.mock_data import intent_label, intent_icon, risk_color
+from utils.mock_data import get_data, intent_label, intent_icon, risk_color
 
-st.set_page_config(page_title="LAPAS – Customers", page_icon=get_logo_image() or "L", layout="wide")
+st.set_page_config(page_title="LAPAS – Customers", page_icon="👥", layout="wide")
 inject()
 sidebar_logo()
 
-df, using_mock = api_client.get_applicants_safe()
-if using_mock:
-    st.warning("Backend unavailable — showing sample data.")
+df = get_data()
 
 # ── Sidebar Filters ───────────────────────────────────────────────────────────
-st.sidebar.markdown(f'<div class="section-header" style="font-size:0.78rem;">{_icon("funnel",13,GOLD_LT)} Filters</div>',
+st.sidebar.markdown(f'<div class="section-header" style="font-size:0.78rem;">🔍 Filters</div>',
                     unsafe_allow_html=True)
 
 search = st.sidebar.text_input("Search by ID", placeholder="e.g. AB12CD34").upper().strip()
@@ -40,7 +36,7 @@ score_min, score_max = st.sidebar.slider(
     "Credit Score Range", 300, 850, (300, 850), step=10)
 
 loan_min, loan_max = st.sidebar.slider(
-    "Loan Amount (R'000)", 0.5, 50.0, (0.5, 50.0), step=0.5)
+    "Loan Amount ($k)", 0.5, 50.0, (0.5, 50.0), step=0.5)
 
 intent_filter = st.sidebar.multiselect("Loan Purpose",
     options=sorted(df['loan_intent'].unique()),
@@ -52,7 +48,7 @@ sort_by = st.sidebar.selectbox("Sort By",
      "Risk Tier", "Approval Probability (High-Low)"])
 
 st.sidebar.markdown("<br>", unsafe_allow_html=True)
-if st.sidebar.button("Reset Filters", use_container_width=True):
+if st.sidebar.button("↺  Reset Filters", use_container_width=True):
     st.rerun()
 
 # ── Apply filters ─────────────────────────────────────────────────────────────
@@ -87,15 +83,14 @@ rejected_n  = (fdf['predicted_outcome'] == 'rejected').sum()
 st.markdown(f"""
 <div style="display:flex; align-items:baseline; justify-content:space-between;
             margin-bottom:1.2rem; flex-wrap:wrap; gap:0.5rem;">
-  <div style="display:flex;align-items:center;gap:0.6rem;">
-    {_icon('user-group',24,GOLD)}
-    <span style="font-size:1.5rem;font-weight:800;color:{TEXT};">Customers</span>
+  <div>
+    <span style="font-size:1.5rem;font-weight:800;color:{TEXT};">👥 Customers</span>
     <span style="font-size:0.85rem;color:{TEXT3};margin-left:0.7rem;">
       {len(fdf):,} of {len(df):,} applications</span>
   </div>
   <div style="display:flex;gap:0.6rem;">
-    <span class="badge-approved">{approved_n} Approved</span>
-    <span class="badge-rejected">{rejected_n} Rejected</span>
+    <span class="badge-approved">✓ {approved_n} Approved</span>
+    <span class="badge-rejected">✗ {rejected_n} Rejected</span>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -104,7 +99,7 @@ st.markdown(f"""
 if fdf.empty:
     st.markdown(f"""
     <div style="text-align:center; padding:3rem; color:{TEXT3};">
-      <div style="margin-bottom:0.8rem;">{_icon('magnifying-glass',48,TEXT3)}</div>
+      <div style="font-size:2.5rem;margin-bottom:0.5rem;">🔍</div>
       <div style="font-size:1rem;font-weight:600;color:{TEXT2};">No applications match the current filters.</div>
       <div style="font-size:0.84rem;margin-top:0.3rem;">Try adjusting the filters in the sidebar.</div>
     </div>
@@ -170,7 +165,7 @@ def _render_card(row):
           </div>
           <div class="cust-metric">
             <div class="cust-metric-label">Loan Amount</div>
-            <div class="cust-metric-value">R{row['loan_amnt']:,.0f}</div>
+            <div class="cust-metric-value">${row['loan_amnt']:,.0f}</div>
           </div>
           <div class="cust-metric">
             <div class="cust-metric-label">Probability</div>
@@ -196,7 +191,7 @@ for i in range(0, len(rows_iter), n_cols):
                 st.markdown(_render_card(row), unsafe_allow_html=True)
                 btn_col, _ = st.columns([1, 1])
                 with btn_col:
-                    if st.button(f"Advisory", key=f"adv_{row['id']}",
+                    if st.button(f"🤖 Advisory", key=f"adv_{row['id']}",
                                  use_container_width=True):
                         st.session_state['selected_customer'] = row['id']
                         st.switch_page("pages/4_AI_Advisory.py")
@@ -206,7 +201,7 @@ if total_pages > 1:
     st.markdown("<br>", unsafe_allow_html=True)
     p_cols = st.columns([1, 2, 1])
     with p_cols[0]:
-        if st.button("Previous", disabled=st.session_state['cust_page'] == 0,
+        if st.button("◀  Previous", disabled=st.session_state['cust_page'] == 0,
                      use_container_width=True):
             st.session_state['cust_page'] -= 1
             st.rerun()
@@ -216,7 +211,7 @@ if total_pages > 1:
             f'Page {st.session_state["cust_page"]+1} of {total_pages}</div>',
             unsafe_allow_html=True)
     with p_cols[2]:
-        if st.button("Next", disabled=st.session_state['cust_page'] >= total_pages - 1,
+        if st.button("Next  ▶", disabled=st.session_state['cust_page'] >= total_pages - 1,
                      use_container_width=True):
             st.session_state['cust_page'] += 1
             st.rerun()
