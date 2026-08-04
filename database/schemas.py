@@ -135,7 +135,7 @@ class LoanApplicant(Base):
     loan_intent = Column(Enum(LoanIntentEnum), nullable=False)
     loan_grade = Column(Enum(LoanGradeEnum), nullable=True)
     loan_int_rate = Column(Numeric(5, 2), nullable=False)
-    loan_percent_income = Column(Numeric(5, 4), nullable=False)  # pre-computed in source data
+    loan_percent_income = Column(Numeric(14, 4), nullable=False)  # pre-computed in source data; wide enough for uncapped loan_amnt / person_income inputs
 
     # --- Credit Bureau ---
     cb_person_cred_hist_length = Column(Numeric(4, 1), nullable=False)
@@ -177,8 +177,8 @@ class EngineeredFeatures(Base):
     )
 
     # --- Financial Ratios ---
-    debt_to_income_ratio = Column(Numeric(10, 6), nullable=True)
-    loan_to_income_ratio = Column(Numeric(10, 6), nullable=True)   # same formula currently; kept for schema clarity
+    debt_to_income_ratio = Column(Numeric(16, 6), nullable=True)  # wide enough for uncapped loan_amnt / person_income inputs
+    loan_to_income_ratio = Column(Numeric(16, 6), nullable=True)   # same formula currently; kept for schema clarity
     credit_history_to_age_ratio = Column(Numeric(10, 6), nullable=True)
     affordability_ratio = Column(Numeric(10, 6), nullable=True)
     monthly_loan_burden = Column(Numeric(12, 2), nullable=True)
@@ -186,7 +186,7 @@ class EngineeredFeatures(Base):
 
     # --- Age & Experience ---
     emp_to_age_ratio = Column(Numeric(10, 6), nullable=True)
-    loan_per_age = Column(Numeric(10, 4), nullable=True)
+    loan_per_age = Column(Numeric(16, 4), nullable=True)  # wide enough for uncapped loan_amnt / low age inputs
     young_inexperienced = Column(Boolean, nullable=True)           # age < 25 AND emp_exp == 0
 
     # --- Credit Quality ---

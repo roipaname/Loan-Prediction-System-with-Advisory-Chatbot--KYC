@@ -18,6 +18,7 @@ CARD3 = CARD2
 from styles.icons import icon as _icon
 from utils import api_client
 from utils.mock_data import intent_label, intent_icon, risk_color
+from utils.markdown_render import advisory_to_html
 
 st.set_page_config(page_title="LAPAS – AI Advisory", page_icon=get_logo_image() or "L", layout="wide")
 inject()
@@ -211,9 +212,7 @@ with t2:
                     st.error(f"Could not reach the advisory backend: {exc}")
         else:
             explanation = st.session_state['generated'][gen_key]
-            st.markdown(
-                f'<div class="explanation-box">{explanation}</div>',
-                unsafe_allow_html=True)
+            st.markdown(advisory_to_html(explanation), unsafe_allow_html=True)
 
     with e2:
         _policy_sources = [
@@ -387,7 +386,7 @@ with t3:
     with pdf_col:
         try:
             from fpdf import FPDF
-            import io
+            import io, re
 
             def _pdf_safe(text: str) -> str:
                 # Helvetica (core font) is latin-1 only; strip characters
@@ -399,6 +398,93 @@ with t3:
                 }.items():
                     text = text.replace(old, new)
                 return text.encode("latin-1", errors="replace").decode("latin-1")
+
+            def _render_markdown_pdf(pdf, md_text: str) -> None:
+                """Render Markdown (headers, bold, lists, tables, blockquotes)
+                as structured PDF content instead of dumping stripped text."""
+                lines = _pdf_safe(md_text).split("\n")
+                i, n = 0, len(lines)
+                while i < n:
+                    line = lines[i].rstrip()
+
+                    if line.strip().startswith("|"):
+                        table_lines = []
+                        while i < n and lines[i].strip().startswith("|"):
+                            table_lines.append(lines[i].strip())
+                            i += 1
+                        rows = []
+                        for tl in table_lines:
+                            cells = [c.strip() for c in tl.strip("|").split("|")]
+                            if all(re.fullmatch(r":?-{2,}:?", c) for c in cells):
+                                continue
+                            rows.append(cells)
+                        ncols = len(rows[0]) if rows else 0
+                        rows = [r for r in rows if len(r) == ncols]
+                        if len(rows) >= 2:
+                            try:
+                                pdf.ln(1)
+                                pdf.set_font("Helvetica", "", 8)
+                                pdf.set_text_color(30, 27, 24)
+                                with pdf.table(
+                                    rows, text_align="LEFT",
+                                    cell_fill_color=(35, 31, 26),
+                                    cell_fill_mode="ROWS",
+                                    borders_layout="ALL",
+                                ):
+                                    pass
+                                pdf.ln(1)
+                            except Exception:
+                                for r in rows:
+                                    pdf.set_font("Helvetica", "", 8.5)
+                                    pdf.multi_cell(0, 5, " | ".join(r))
+                        continue
+
+                    if not line.strip():
+                        pdf.ln(2); i += 1; continue
+
+                    if line.startswith("### "):
+                        pdf.set_font("Helvetica", "B", 10)
+                        pdf.set_text_color(196, 168, 122)
+                        pdf.multi_cell(0, 5.5, line[4:], markdown=True)
+                        pdf.set_text_color(30, 27, 24)
+                    elif line.startswith("## "):
+                        pdf.ln(1)
+                        pdf.set_font("Helvetica", "B", 11)
+                        pdf.set_text_color(196, 168, 122)
+                        pdf.multi_cell(0, 6, line[3:], markdown=True)
+                        pdf.set_draw_color(44, 40, 34)
+                        pdf.line(18, pdf.get_y(), 192, pdf.get_y())
+                        pdf.ln(1)
+                        pdf.set_text_color(30, 27, 24)
+                    elif line.startswith("# "):
+                        pdf.set_font("Helvetica", "B", 13)
+                        pdf.set_text_color(196, 168, 122)
+                        pdf.multi_cell(0, 7, line[2:], markdown=True)
+                        pdf.set_text_color(30, 27, 24)
+                    elif line.strip() in ("---", "___", "***"):
+                        pdf.set_draw_color(196, 168, 122)
+                        pdf.line(18, pdf.get_y() + 1, 192, pdf.get_y() + 1)
+                        pdf.ln(3)
+                    elif line.startswith(">"):
+                        pdf.set_font("Helvetica", "I", 8.5)
+                        pdf.set_text_color(100, 94, 88)
+                        pdf.set_x(pdf.l_margin + 4)
+                        pdf.multi_cell(0, 5, line.lstrip("> ").strip(), markdown=True)
+                        pdf.set_text_color(30, 27, 24)
+                    elif re.match(r'^[-*]\s+', line) or re.match(r'^\d+\.\s+', line):
+                        m_num = re.match(r'^(\d+)\.\s+(.*)', line)
+                        m_bul = re.match(r'^[-*]\s+(.*)', line)
+                        bullet, text = (f"{m_num.group(1)}.", m_num.group(2)) if m_num else ("-", m_bul.group(1))
+                        pdf.set_font("Helvetica", "", 9)
+                        pdf.set_text_color(30, 27, 24)
+                        pdf.set_x(pdf.l_margin + 4)
+                        pdf.multi_cell(0, 5.2, f"{bullet}  {text}", markdown=True)
+                    else:
+                        pdf.set_font("Helvetica", "", 9)
+                        pdf.set_text_color(30, 27, 24)
+                        pdf.set_x(pdf.l_margin)
+                        pdf.multi_cell(0, 5.2, line, markdown=True)
+                    i += 1
 
             def build_pdf():
                 pdf = FPDF()
@@ -466,11 +552,7 @@ with t3:
                 pdf.set_draw_color(44, 40, 34)
                 pdf.line(18, pdf.get_y(), 192, pdf.get_y())
                 pdf.ln(2)
-                pdf.set_font("Helvetica", "", 8.5)
-                pdf.set_text_color(30, 27, 24)
-                # Strip markdown
-                clean_exp = explanation_text.replace('**','').replace('*','').replace('#','')
-                pdf.multi_cell(0, 5.5, _pdf_safe(clean_exp[:2500]))
+                _render_markdown_pdf(pdf, explanation_text)
 
                 # Footer
                 pdf.set_y(-25)

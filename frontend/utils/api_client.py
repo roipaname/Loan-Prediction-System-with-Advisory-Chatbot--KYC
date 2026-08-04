@@ -33,9 +33,9 @@ def _get(path: str, **params: Any) -> Any:
         raise BackendUnavailable(str(exc)) from exc
 
 
-def _post(path: str, json_body: Optional[dict] = None, **params: Any) -> Any:
+def _post(path: str, json_body: Optional[dict] = None, timeout: int = 60, **params: Any) -> Any:
     try:
-        resp = requests.post(f"{API_BASE_URL}{path}", json=json_body, params=params, timeout=60)
+        resp = requests.post(f"{API_BASE_URL}{path}", json=json_body, params=params, timeout=timeout)
         resp.raise_for_status()
         return resp.json()
     except requests.RequestException as exc:
@@ -91,7 +91,9 @@ def get_prediction(code: str) -> Dict[str, Any]:
 
 
 def generate_advisory(code: str, retriever: str = "tfidf") -> Dict[str, Any]:
-    return _post(f"/predictions/{code}/advisory", retriever=retriever)
+    # LLM generation (plus a bounded retry against a flaky free inference
+    # tier) can legitimately take longer than the default request timeout.
+    return _post(f"/predictions/{code}/advisory", retriever=retriever, timeout=100)
 
 
 @st.cache_data(ttl=60, show_spinner=False)

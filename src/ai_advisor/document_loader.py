@@ -38,9 +38,9 @@ from loguru import logger as log
 
 def _chunk_text(
     text: str,
-    chunk_size: int,
-    chunk_overlap: int,
-    source: str,
+    chunk_size: int=512,
+    chunk_overlap: int=64,
+    source: str='',
 ) -> List[Dict]:
     """
     Split text into overlapping word-level chunks.

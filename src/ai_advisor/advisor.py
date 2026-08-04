@@ -42,6 +42,7 @@ Public API
 from __future__ import annotations
 
 import textwrap
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -138,7 +139,8 @@ def _build_prompt(
     ctx: Dict[str, Any],
     retrieved_docs: List[str],
     retrieved_metas: List[Dict],
-) -> str:
+) -> tuple[str, str]:
+    """Build the (system, user) message pair for the chat-completion call."""
     outcome      = ctx["prediction"]["outcome"]
     confidence   = ctx["prediction"]["confidence"]
     risk_tier    = ctx["prediction"]["risk_tier"]
@@ -151,24 +153,31 @@ def _build_prompt(
     action_instruction = (
         "Include a Recommended Action Plan section with three timeline phases "
         "(Immediate: 0 to 3 months; Short-term: 3 to 12 months; Long-term: 12 months and beyond). "
-        "Each phase must contain at least two specific, actionable steps tailored to this applicant's profile."
+        "Each phase must contain at least three specific, actionable steps tailored to this "
+        "applicant's profile, and a short paragraph (2 to 3 sentences) explaining why each phase matters."
         if outcome == "rejected"
-        else "Include a brief section explaining what factors most strongly supported this approval."
+        else "Include a detailed section explaining what factors most strongly supported this "
+             "approval, and a short paragraph of guidance on maintaining this favourable profile."
     )
 
     system_block = textwrap.dedent("""\
         You are LAPAS, the Loan Approval Prediction and Advisory System.
-        You produce detailed, professional advisory reports for loan applicants.
+        You produce detailed, professional, in-depth advisory reports for loan applicants.
         Your tone is polished, clear, and business-friendly.
         You never use em dashes. Use commas, colons, or parentheses instead.
         You cite specific policy references from the provided document excerpts.
         You do not guarantee outcomes or make absolute promises.
         All monetary values are in South African Rand (R).
         Format your entire response as well-structured Markdown.
+        Write in full explanatory paragraphs, not just short bullet fragments;
+        bullets and tables are for lists and summaries only, every section needs
+        substantive prose that explains the reasoning, not just states facts.
     """).strip()
 
     user_block = textwrap.dedent(f"""\
-        Generate a detailed Loan Advisory Report for the following applicant.
+        Generate a thorough, detailed Loan Advisory Report for the following applicant.
+        Target length: approximately 900 to 1300 words. Be comprehensive and specific
+        to this applicant's numbers, do not write generic filler.
 
         Applicant Reference: {applicant_id}
         Report Date: {datetime.now().strftime('%d %B %Y')}
@@ -183,33 +192,57 @@ def _build_prompt(
         {policy_context}
 
         INSTRUCTIONS:
-        - Open with a clear Decision Summary section stating the outcome ({outcome.upper()}),
-          confidence ({confidence}), and risk tier ({risk_tier}).
-        - Explain the Key Decision Factors in clear, non-technical language.
-          Reference at least two of the top model drivers listed above.
+        - Open with a Decision Summary section (2 to 3 paragraphs) stating the outcome
+          ({outcome.upper()}), confidence ({confidence}), and risk tier ({risk_tier}), and
+          giving the applicant a clear, plain-language sense of what this decision means for them.
+        - Write a Key Decision Factors section that discusses at least four of the top model
+          drivers listed above, one paragraph each, explaining in non-technical language why
+          that factor matters to a credit decision and how this applicant's specific value
+          compares to a healthy benchmark.
         - {action_instruction}
-        - Include a Policy References section that quotes or paraphrases the most
-          relevant excerpt and cites the source document by name.
-        - Close with a Risk Profile Summary table listing the applicant's key
-          metrics alongside a plain-language assessment of each.
+        - Include a Policy References section that quotes or paraphrases at least two of the
+          most relevant excerpts and cites the source document by name, with a sentence
+          connecting each excerpt back to this applicant's situation.
+        - Close with a Risk Profile Summary table listing the applicant's key metrics alongside
+          a plain-language assessment of each, followed by a short closing paragraph.
         - Do not use em dashes anywhere in your response.
-        - Keep the language professional, clear, and empathetic.
+        - Keep the language professional, clear, and empathetic, and avoid repeating the same
+          sentence structure across sections.
     """).strip()
 
-    # Mistral instruction format: <s>[INST] {system + user} [/INST]
-    return f"<s>[INST] {system_block}\n\n{user_block} [/INST]"
+    return system_block, user_block
 
 
 # ---------------------------------------------------------------------------
 # HuggingFace client wrapper
 # ---------------------------------------------------------------------------
 
-def _call_huggingface(prompt: str, model: str, token: str) -> str:
+def _call_huggingface(
+    system_block: str,
+    user_block: str,
+    model: str,
+    token: str,
+    max_retries: int = 1,
+    retry_delay: float = 2.0,
+    request_timeout: float = 25.0,
+) -> str:
     """
     Call the HuggingFace Inference API and return the generated text.
 
-    Uses huggingface_hub.InferenceClient, which handles authentication,
-    retries, and streaming automatically.
+    Uses huggingface_hub.InferenceClient's chat_completion(), which routes to
+    whatever provider currently serves this model. text_generation() (the raw
+    "text-generation" task) is not used here: providers backing instruct
+    models like Mistral-7B-Instruct-v0.2 now serve them under the
+    "conversational" task only and reject text_generation() with a ValueError
+    ("... is not supported for task text-generation ...").
+
+    The free-tier serverless backend behind this model intermittently returns
+    a transient "This model is busy, please try again later" error under
+    load, and when busy it can take ~25-30s per attempt to report that (it is
+    not a fast rejection). request_timeout caps how long any single attempt
+    is allowed to hang before we cut it short and retry / fall back, so a
+    busy provider degrades to the rule-based report in bounded time instead
+    of compounding into a very long wait.
     """
     try:
         from huggingface_hub import InferenceClient
@@ -218,27 +251,93 @@ def _call_huggingface(prompt: str, model: str, token: str) -> str:
             "huggingface_hub is required.  Install it with: pip install huggingface-hub"
         ) from exc
 
-    client = InferenceClient(model=model, token=token)
+    client = InferenceClient(model=model, token=token, timeout=request_timeout)
 
-    log.info("Calling HuggingFace Inference API: model=%s", model)
+    last_exc: Exception | None = None
+    for attempt in range(max_retries + 1):
+        try:
+            log.info("Calling HuggingFace Inference API (chat_completion): model={} attempt={}",
+                      model, attempt + 1)
+            response = client.chat_completion(
+                messages=[
+                    {"role": "system", "content": system_block},
+                    {"role": "user", "content": user_block},
+                ],
+                max_tokens=2_000,
+                temperature=0.4,       # lower temperature reduces hallucination risk
+                top_p=0.92,
+            )
+            text = response.choices[0].message.content
+            log.info("HuggingFace response received ({} chars)", len(text))
+            return text.strip()
+        except Exception as exc:
+            last_exc = exc
+            if attempt < max_retries:
+                log.warning("HuggingFace call attempt {} failed ({}); retrying in {}s...",
+                            attempt + 1, exc, retry_delay)
+                time.sleep(retry_delay)
 
-    response = client.text_generation(
-        prompt,
-        max_new_tokens=1_800,
-        temperature=0.4,       # lower temperature reduces hallucination risk
-        top_p=0.92,
-        repetition_penalty=1.1,
-        do_sample=True,
-        return_full_text=False,  # return only the newly generated tokens
-    )
-
-    log.info("HuggingFace response received (%d chars)", len(response))
-    return response.strip()
+    raise last_exc
 
 
 # ---------------------------------------------------------------------------
 # Fallback report (when HuggingFace is unavailable)
 # ---------------------------------------------------------------------------
+
+def _build_financial_narrative(ctx: Dict[str, Any]) -> str:
+    """
+    Three data-driven paragraphs (affordability, credit profile, employment/housing)
+    used to give the rule-based fallback report substantive prose instead of just
+    bullet points and a table, without fabricating anything beyond the applicant's
+    actual submitted and engineered values.
+    """
+    app = ctx["applicant"]
+    eng = ctx["engineered"]
+
+    income        = app.get("annual_income", 0)
+    monthly_income = eng.get("monthly_income", 0)
+    loan_amt      = app.get("loan_amount", 0)
+    pct_income    = eng.get("loan_to_income_ratio", 0)
+    afford        = eng.get("affordability_ratio", 0)
+    monthly_burden = eng.get("monthly_loan_burden", 0)
+    intent        = str(app.get("loan_intent", "N/A")).replace("_", " ").title()
+
+    score  = app.get("credit_score", 0)
+    tier   = _credit_tier_label(score).split(" (")[0]
+    hist   = app.get("credit_history_years", 0)
+    default = app.get("previous_default_on_record")
+
+    exp_years = app.get("employment_experience_years", 0)
+    home      = str(app.get("home_ownership", "N/A")).title()
+    stability = str(eng.get("employment_stability", "N/A")).title()
+
+    p1 = (
+        f"This application requests {_format_currency(loan_amt)} for {intent.lower()} purposes against "
+        f"a declared annual income of {_format_currency(income)} ({_format_currency(monthly_income)} per "
+        f"month). The requested amount represents {pct_income*100:.1f}% of annual income, which LAPAS "
+        f"underwriting policy treats as "
+        f"{'a loan-to-income concern above the standard 30% threshold' if pct_income > 0.30 else 'within the generally acceptable range below the 30% threshold'}. "
+        f"On a monthly basis, the estimated loan repayment burden of {_format_currency(monthly_burden)} "
+        f"corresponds to an affordability ratio of {afford:.2f}, meaning "
+        f"{'the applicant retains a comfortable buffer of disposable income after debt service.' if afford >= 0.6 else 'the margin between income and estimated obligations is comparatively tight.'}"
+    )
+
+    p2 = (
+        f"The applicant's credit score of {score} falls in the {tier} tier, informed by a credit history "
+        f"spanning {hist:.1f} years. "
+        f"{'A longer credit history gives lenders more data points to assess repayment behaviour over time, which supports this application.' if hist >= 4 else 'A relatively short credit history limits the amount of repayment behaviour data available, a factor the model weighs conservatively.'} "
+        f"{'No previous loan default is recorded for this applicant, one of the strongest positive signals in the LAPAS risk model.' if not default else 'A previous loan default is recorded on this applicant, one of the most significant negative signals in the LAPAS risk model, and it materially increases assessed risk.'}"
+    )
+
+    p3 = (
+        f"On the employment and housing side, the applicant reports {exp_years} years of employment "
+        f"experience and a home ownership status of {home}, which the model classifies as "
+        f"{stability.lower()} employment stability. "
+        f"{'Stable, longer-tenured employment is generally associated with more predictable income and lower default risk, which is factored favourably into the overall assessment.' if stability.lower() == 'stable' else 'Shorter or less continuous employment tenure introduces additional uncertainty into the income stability assessment, which the model factors conservatively.'}"
+    )
+
+    return "\n\n".join([p1, p2, p3])
+
 
 def _build_fallback_report(ctx: Dict[str, Any], retrieved_docs: List[str], retrieved_metas: List[Dict]) -> str:
     """
@@ -259,10 +358,12 @@ def _build_fallback_report(ctx: Dict[str, Any], retrieved_docs: List[str], retri
     )
     decision_colour = "Approval granted" if outcome == "approved" else "Application not approved at this time"
 
+    financial_narrative = _build_financial_narrative(ctx)
+
     importance = ctx.get("feature_importance", [])
     importance_lines = "\n".join(
         f"- **{item['readable_name']}** (importance: {item['importance']:.4f})"
-        for item in importance[:8]
+        for item in importance[:12]
     )
 
     action_section = ""
@@ -291,9 +392,9 @@ def _build_fallback_report(ctx: Dict[str, Any], retrieved_docs: List[str], retri
     policy_refs = ""
     if retrieved_docs:
         policy_refs = "\n\n## Policy References\n\n"
-        for doc, meta in zip(retrieved_docs[:2], retrieved_metas[:2]):
+        for doc, meta in zip(retrieved_docs[:3], retrieved_metas[:3]):
             source = meta.get("source_file", meta.get("source", "Policy Document"))
-            excerpt = textwrap.shorten(doc, width=400, placeholder=" [...]")
+            excerpt = textwrap.shorten(doc, width=550, placeholder=" [...]")
             policy_refs += f"> {excerpt}\n>\n> *Source: {source}*\n\n"
 
     risk_rows = [
@@ -324,9 +425,15 @@ def _build_fallback_report(ctx: Dict[str, Any], retrieved_docs: List[str], retri
 
 ---
 
+## Financial Profile Analysis
+
+{financial_narrative}
+
+---
+
 ## Key Decision Factors
 
-The following features had the greatest influence on the model's assessment:
+The following features had the greatest influence on the model's assessment, ranked by importance:
 
 {importance_lines}
 {action_section}
@@ -340,9 +447,11 @@ The following features had the greatest influence on the model's assessment:
 
 ---
 
-*This report was generated by the LAPAS Advisory System. It is intended as a
-guidance tool and does not constitute a formal credit decision or legal advice.
-For a formal credit assessment, contact a registered credit provider.*
+{decision_colour}, based on the factors summarised above. This assessment reflects the applicant's
+profile at the time of submission; a materially different financial position, credit history update,
+or reapplication with adjusted terms may produce a different outcome. This report was generated by the
+LAPAS Advisory System and is intended as a guidance tool, it does not constitute a formal credit decision
+or legal advice. For a formal credit assessment, contact a registered credit provider.
 """
 
 
@@ -410,16 +519,16 @@ class LoanAdvisor:
 
         if self.use_llm and self.hf_token:
             try:
-                prompt = _build_prompt(context, retrieved_docs, retrieved_metas)
-                report = _call_huggingface(prompt, self.hf_model, self.hf_token)
+                system_block, user_block = _build_prompt(context, retrieved_docs, retrieved_metas)
+                report = _call_huggingface(system_block, user_block, self.hf_model, self.hf_token)
                 # Ensure the response is well-formed markdown with a header
                 if not report.strip().startswith("#"):
                     report = "# Loan Advisory Report\n\n" + report
                 return report
             except Exception as exc:
                 log.error(
-                    "HuggingFace API call failed (%s).  "
-                    "Falling back to rule-based report.", exc,
+                    "HuggingFace API call failed ({}).  Falling back to rule-based report.",
+                    exc,
                 )
 
         log.info("LoanAdvisor: generating fallback (rule-based) report.")
@@ -468,10 +577,10 @@ class LoanAdvisor:
             docs  = result.get("documents", [[]])[0]
             metas = result.get("metadatas", [[{}] * len(docs)])[0]
             log.info(
-                "Retrieved %d policy excerpts for query: %s ...",
+                "Retrieved {} policy excerpts for query: {} ...",
                 len(docs), query_text[:80],
             )
             return docs, metas
         except Exception as exc:
-            log.warning("Vector store retrieval failed (%s); using empty context.", exc)
+            log.warning("Vector store retrieval failed ({}); using empty context.", exc)
             return [], []

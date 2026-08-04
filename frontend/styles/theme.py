@@ -534,6 +534,66 @@ hr {{
     line-height: 1.75;
     font-size: 0.89rem;
 }}
+.explanation-box h1, .explanation-box h2, .explanation-box h3 {{
+    color: {GOLD_LT};
+    font-weight: 700;
+    margin: 1.1rem 0 0.6rem 0;
+    line-height: 1.4;
+}}
+.explanation-box h1 {{ font-size: 1.25rem; }}
+.explanation-box h2 {{ font-size: 1.08rem; border-bottom: 1px solid {BORDER}; padding-bottom: 0.35rem; }}
+.explanation-box h3 {{ font-size: 0.98rem; }}
+.explanation-box h1:first-child, .explanation-box h2:first-child, .explanation-box h3:first-child {{
+    margin-top: 0;
+}}
+.explanation-box p {{ margin: 0 0 0.9rem 0; }}
+.explanation-box strong {{ color: {TEXT}; font-weight: 700; }}
+.explanation-box em {{ color: {TEXT2}; }}
+.explanation-box ul, .explanation-box ol {{
+    margin: 0 0 0.9rem 0;
+    padding-left: 1.4rem;
+}}
+.explanation-box li {{ margin-bottom: 0.35rem; color: {TEXT}; }}
+.explanation-box hr {{
+    border: none;
+    border-top: 1px solid {BORDER};
+    margin: 1rem 0;
+}}
+.explanation-box blockquote {{
+    margin: 0 0 0.9rem 0;
+    padding: 0.5rem 1rem;
+    border-left: 3px solid {GOLD_DK};
+    background: rgba(196,168,122,0.06);
+    color: {TEXT2};
+    font-style: italic;
+    border-radius: 0 8px 8px 0;
+}}
+.explanation-box table {{
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 1rem 0;
+    font-size: 0.85rem;
+}}
+.explanation-box th {{
+    text-align: left;
+    color: {GOLD_LT};
+    background: rgba(196,168,122,0.08);
+    padding: 0.5rem 0.7rem;
+    border: 1px solid {BORDER};
+    font-weight: 600;
+}}
+.explanation-box td {{
+    padding: 0.5rem 0.7rem;
+    border: 1px solid {BORDER};
+    color: {TEXT2};
+}}
+.explanation-box code {{
+    background: rgba(196,168,122,0.10);
+    color: {GOLD_LT};
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.85em;
+}}
 
 /* Step card */
 .step-card {{

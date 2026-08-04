@@ -9,9 +9,11 @@ import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from styles.theme import inject, sidebar_logo, get_logo_image, GOLD, GOLD_LT, GOLD_DK
-from styles.theme import TEXT, TEXT2, TEXT3, CARD, CARD2, BORDER, SUCCESS, DANGER
+from styles.theme import TEXT, TEXT2, TEXT3, CARD, CARD2, BORDER, SUCCESS, SUCCESS_LT, DANGER, DANGER_LT
 from styles.icons import icon as _icon
 from utils import api_client
+from utils.mock_data import intent_label, intent_icon
+from utils.markdown_render import advisory_to_html
 
 st.set_page_config(page_title="LAPAS – Application", page_icon=get_logo_image() or "L", layout="wide")
 inject()
@@ -27,37 +29,129 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── If already submitted show success card ────────────────────────────────────
+# ── If already submitted show full outcome + AI advisory directly ─────────────
 if st.session_state.get("last_submitted_id"):
-    sid = st.session_state["last_submitted_id"]
+    sid     = st.session_state["last_submitted_id"]
     outcome = st.session_state.get("last_outcome", "approved")
     prob    = st.session_state.get("last_prob", 0.0)
-    badge   = (f'<span class="badge-approved">Approved</span>'
-               if outcome == 'approved' else
-               f'<span class="badge-rejected">Rejected</span>')
+    risk_tier = st.session_state.get("last_risk_tier", "N/A")
+    approved  = outcome == "approved"
+    badge     = (f'<span class="badge-approved">Approved</span>'
+                 if approved else f'<span class="badge-rejected">Rejected</span>')
+    risk_col  = {"Low": SUCCESS_LT, "Medium": GOLD_LT, "High": DANGER_LT}.get(risk_tier, TEXT2)
 
     st.markdown(f"""
-    <div class="submit-success">
-      <div style="margin-bottom:0.7rem;">
-        {f"{_icon('check-circle',40,SUCCESS)}" if outcome == 'approved' else f"{_icon('x-circle',40,DANGER)}"}</div>
-      <div style="font-size:1.1rem;font-weight:700;color:{TEXT};margin-bottom:0.3rem;">
-        Application Submitted Successfully</div>
-      <div style="margin-bottom:0.8rem;">{badge}</div>
-      <div style="font-size:0.84rem;color:{TEXT2};margin-bottom:1rem;">
-        Application ID: <code style="color:{GOLD_LT};background:rgba(196,168,122,0.10);
-        padding:2px 8px;border-radius:5px;">APP-{sid}</code>
-        &nbsp;·&nbsp; Approval Probability: <b style="color:{GOLD_LT}">{prob*100:.1f}%</b>
-      </div>
-      <div style="font-size:0.8rem;color:{TEXT3};">
-        Navigate to AI Advisory to generate a full explanation report.</div>
+    <div style="margin-bottom:1rem;display:flex;align-items:center;gap:0.6rem;">
+      {_icon('check-circle',26,GOLD) if approved else _icon('x-circle',26,GOLD)}
+      <span style="font-size:1.5rem;font-weight:800;color:{TEXT};">Application Outcome</span>
+      <span style="font-size:0.84rem;color:{TEXT3};margin-left:0.8rem;">
+        Application ID: APP-{sid}</span>
     </div>
     """, unsafe_allow_html=True)
+
+    # ── Outcome + profile card (mirrors AI Advisory page's profile card) ──────
+    row = api_client.get_applicant_row(sid)
+    _hdr_bg = "linear-gradient(135deg,#1E3228,#162A20)" if approved else "linear-gradient(135deg,#2A1A1C,#221518)"
+    _hdr_border = "rgba(92,140,106,0.25)" if approved else "rgba(140,94,98,0.25)"
+
+    if row is not None:
+        profile_fields = [
+            ("Age",          f"{int(row['person_age'])} yrs"),
+            ("Income",       f"R{row['person_income']:,.0f}"),
+            ("Credit Score", f"{int(row['credit_score'])} ({row['credit_score_tier']})"),
+            ("Loan Amount",  f"R{row['loan_amnt']:,.0f}"),
+            ("Purpose",      f"{intent_icon(row['loan_intent'])} {intent_label(row['loan_intent'])}"),
+            ("Grade",        f"{row['loan_grade']} · {row['loan_int_rate']:.1f}%"),
+        ]
+    else:
+        profile_fields = []
+
+    _profile_cells = "".join(
+        f'<div style="padding:0.5rem 0;">'
+        f'<div style="font-size:0.66rem;color:{TEXT3};text-transform:uppercase;'
+        f'letter-spacing:0.06em;margin-bottom:3px;">{lbl}</div>'
+        f'<div style="font-size:0.9rem;font-weight:600;color:{TEXT};">{val}</div>'
+        f'</div>'
+        for lbl, val in profile_fields
+    )
+    _profile_grid = (
+        f'<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:0;'
+        f'padding:1rem 1.4rem;">{_profile_cells}</div>'
+        if profile_fields else ''
+    )
+
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,{CARD} 0%,{CARD2} 100%);
+                border:1px solid {BORDER};border-radius:18px;overflow:hidden;
+                margin-bottom:1.2rem;">
+      <div style="background:{_hdr_bg};padding:1rem 1.4rem;border-bottom:1px solid {_hdr_border};
+                  display:flex;justify-content:space-between;align-items:center;">
+        <div>{badge}</div>
+        <div style="text-align:right;">
+          <div style="font-size:0.8rem;color:{risk_col};font-weight:600;">
+            {risk_tier} Risk · {prob*100:.1f}% approval probability</div>
+        </div>
+      </div>
+      {_profile_grid}
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Top LIME drivers (compact) ─────────────────────────────────────────
+    if row is not None and row.get('shap_values'):
+        from src.ai_advisor.loan_context_builder import _readable_name as _nice_name
+        top5 = sorted(row['shap_values'].items(), key=lambda x: abs(x[1]), reverse=True)[:5]
+        _driver_rows = ""
+        for k, v in top5:
+            col = SUCCESS_LT if v > 0 else DANGER_LT
+            sign = "+" if v > 0 else ""
+            _driver_rows += (
+                f'<div style="display:flex;justify-content:space-between;'
+                f'padding:0.4rem 0;border-bottom:1px solid {BORDER};font-size:0.82rem;">'
+                f'<span style="color:{TEXT2};">{_nice_name(k)}</span>'
+                f'<span style="color:{col};font-weight:600;font-family:monospace;">'
+                f'{sign}{v:.4f}</span></div>'
+            )
+        st.markdown(
+            f'<div class="info-panel" style="margin-bottom:1.2rem;">'
+            f'<div class="info-panel-title">{_icon("trophy",14,GOLD_LT)} Top Decision Drivers (LIME)</div>'
+            f'{_driver_rows}</div>',
+            unsafe_allow_html=True,
+        )
+
+    # ── AI Advisory report, rendered (not raw markdown) ────────────────────
+    st.markdown(f"""
+    <div style="margin:1.2rem 0 0.6rem 0;display:flex;align-items:center;gap:0.5rem;">
+      {_icon('cpu-chip',18,GOLD)}
+      <span style="font-size:1.05rem;font-weight:700;color:{TEXT};">AI Advisory Explanation</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if "last_advisory_report" not in st.session_state:
+        try:
+            with st.spinner("Generating policy-grounded advisory report…"):
+                _result = api_client.generate_advisory(sid, retriever="tfidf")
+            st.session_state["last_advisory_report"] = _result["report"]
+        except api_client.BackendUnavailable as exc:
+            st.session_state["last_advisory_report"] = None
+            st.session_state["last_advisory_error"] = str(exc)
+
+    if st.session_state.get("last_advisory_report"):
+        st.markdown(advisory_to_html(st.session_state["last_advisory_report"]), unsafe_allow_html=True)
+    else:
+        st.error(f"Could not generate the advisory report: "
+                 f"{st.session_state.get('last_advisory_error', 'backend unreachable')}")
+
+    st.markdown(f'<div style="font-size:0.8rem;color:{TEXT3};margin-top:0.8rem;">'
+                f'Visit AI Advisory for feature-attribution charts, retriever comparison, '
+                f'next-step guidance, and PDF export.</div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
     col_a, col_b = st.columns([1, 3])
     with col_a:
         if st.button("New Application", use_container_width=True):
-            st.session_state.pop("last_submitted_id", None)
+            for k in ("last_submitted_id", "last_outcome", "last_prob", "last_risk_tier",
+                      "last_advisory_report", "last_advisory_error"):
+                st.session_state.pop(k, None)
             st.rerun()
     st.stop()
 
@@ -81,9 +175,11 @@ with st.form("loan_form", clear_on_submit=False):
     st.markdown(f'<div class="form-section">{_icon("banknotes",14,GOLD_LT)} Financial Profile</div>', unsafe_allow_html=True)
     f1, f2, f3 = st.columns(3)
     with f1:
-        income = st.number_input("Annual Income (R)", min_value=5_000, max_value=500_000,
-                                 value=55_000, step=1_000, format="%d",
-                                 help="Total gross annual income in ZAR.")
+        income = st.number_input("Annual Income (R)", min_value=5_000, max_value=1_000_000_000,
+                                 value=180_000, step=5_000, format="%d",
+                                 help="Total gross annual income in ZAR. The model was trained on "
+                                      "real applications with incomes mostly below ~R2.4 million; "
+                                      "predictions for far higher incomes are extrapolated.")
     with f2:
         emp_exp = st.number_input("Employment Experience (years)", min_value=0, max_value=50,
                                   value=5, step=1)
@@ -96,8 +192,11 @@ with st.form("loan_form", clear_on_submit=False):
     st.markdown(f'<div class="form-section">{_icon("building-library",14,GOLD_LT)} Loan Details</div>', unsafe_allow_html=True)
     l1, l2, l3 = st.columns(3)
     with l1:
-        loan_amnt = st.number_input("Loan Amount (R)", min_value=500, max_value=100_000,
-                                    value=12_000, step=500, format="%d")
+        loan_amnt = st.number_input("Loan Amount (R)", min_value=500, max_value=1_000_000_000,
+                                    value=25_000, step=1_000, format="%d",
+                                    help="The model was trained on real applications with loan "
+                                         "amounts up to ~R104,000. Requests far beyond that are "
+                                         "extrapolated and predictions may become less reliable.")
     with l2:
         loan_intent = st.selectbox("Loan Purpose",
             ["PERSONAL","EDUCATION","MEDICAL","VENTURE","HOME_IMPROVEMENT","DEBTCONSOLIDATION"],
@@ -171,6 +270,7 @@ if submitted:
         st.session_state['last_submitted_id'] = result['display_code']
         st.session_state['last_outcome']      = result['outcome']
         st.session_state['last_prob']         = result['probability']
+        st.session_state['last_risk_tier']    = result['risk_tier']
         st.session_state['selected_customer'] = result['display_code']
         st.rerun()
     except api_client.BackendUnavailable as exc:
@@ -188,6 +288,18 @@ border-radius:10px;padding:0.9rem;margin-top:1rem;">
     • Keep loan-to-income ratio below 30%<br>
     • Longer credit history is a positive signal<br>
     • Stable employment (3+ years) reduces risk tier
+  </div>
+</div>
+<div style="background:rgba(140,94,98,0.07);border:1px solid rgba(140,94,98,0.18);
+border-radius:10px;padding:0.9rem;margin-top:0.8rem;">
+  <div style="font-size:0.75rem;color:{DANGER_LT};font-weight:600;margin-bottom:0.4rem;
+    display:flex;align-items:center;gap:0.4rem;">
+    {_icon('exclamation-triangle',13,DANGER_LT)} Model Range Note</div>
+  <div style="font-size:0.73rem;color:{TEXT2};line-height:1.6;">
+    The classifier was trained on real applications with loan amounts up to
+    ~R104,000 and incomes mostly below ~R2.4 million. Values far beyond that
+    range are extrapolated by the model, so predictions there may be unreliable
+    or counter-intuitive even for an otherwise strong applicant profile.
   </div>
 </div>
 """, unsafe_allow_html=True)

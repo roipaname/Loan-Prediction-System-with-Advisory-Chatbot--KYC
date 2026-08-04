@@ -1,0 +1,136 @@
+LAPAS — ZAR RESCALE: DB RESET, RETRAIN, REPOPULATE RUNBOOK
+=============================================================
+Context
+-------
+The source dataset (Kaggle "Loan Approval Classification Data", 45,000 rows)
+is denominated in USD. Nothing in this codebase ever converted it — raw
+person_income / loan_amnt numerals were used as-is with an "R" label slapped
+on, so the app was effectively displaying USD figures mislabeled as Rand.
+
+database/feature_eng.py now rescales person_income and loan_amnt so the
+dataset's original median annual income ($67,048) maps to a representative
+South African median formal-sector annual income of R200,000 (scale factor
+~2.9829, applied identically to both columns so the loan-to-income ratio
+structure the model learns from is unchanged). Policy documents and frontend
+help text were updated to match the new range. This runbook takes that code
+change through to a fully retrained, repopulated system.
+
+New reference figures after rescale (for sanity-checking your own runs):
+  - Median training income:  R200,000   (was $67,048)
+  - Median training loan:    R23,864    (was $8,000)
+  - Max training loan:       ~R104,403  (was $35,000)
+  - Income 99.9th pct:       ~R2,392,575 (was $802,087)
+
+Run every command below from the project root, using `.venv/bin/python`
+directly (not `uv run` — see CLAUDE.md).
+
+---------------------------------------------------------------------------
+STEP 1 — Regenerate the processed feature CSV
+---------------------------------------------------------------------------
+Rebuilds data/processed/loan_features.csv from data/raw/loan_data.csv with
+the new ZAR rescale applied.
+
+    .venv/bin/python -m database.feature_eng
+
+(Note: CLAUDE.md documents `python database/feature_eng.py` — that form
+currently fails with `ModuleNotFoundError: No module named 'config'` because
+running a script directly only puts its own directory on sys.path, not the
+project root. Use the `-m database.feature_eng` form above instead.)
+
+Sanity check afterward:
+    .venv/bin/python -c "
+    import pandas as pd
+    df = pd.read_csv('data/processed/loan_features.csv')
+    print('median income:', df['person_income'].median())   # expect 200000.0
+    print('median loan  :', df['loan_amnt'].median())        # expect ~23863.5
+    "
+
+---------------------------------------------------------------------------
+STEP 2 — Retrain all classifiers on the rescaled data
+---------------------------------------------------------------------------
+Trains random_forest, xgboost, naive_bayes, logistic_regression on the new
+data, evaluates them, and writes models/best_model.joblib +
+models/model_comparison.csv. This can take a few minutes.
+
+    .venv/bin/python -m scripts.train_model
+
+Optional: hyperparameter tuning (slower, more thorough):
+    .venv/bin/python -m scripts.train_model --tune --tune-n-iter 30
+
+Optional: pick a different selection metric (default is roc_auc, or
+whatever MODEL_SELECTION_METRIC is set to in .env):
+    .venv/bin/python -m scripts.train_model --metric f1_weighted
+
+Sanity check afterward: models/best_model.joblib and
+models/model_comparison.csv should have fresh timestamps.
+
+---------------------------------------------------------------------------
+STEP 3 — Clear the stale dense-retrieval (Chroma) index
+---------------------------------------------------------------------------
+The TF-IDF retriever always rebuilds itself from the .txt/.pdf files in
+data/loan_strategy_docs/ on every process start, so it automatically picks
+up the edited lending_policy.txt / improvement_roadmap.txt — no action
+needed there.
+
+The dense (vector/Chroma) retriever is different: it persists its index to
+disk at data/chroma_db/ and, by default (force_reindex=False in
+backend/deps.py's get_vector_store()), REUSES that persisted index if it
+already has documents in it — so it will keep serving the OLD policy text
+unless the persisted index is cleared.
+
+    rm -rf data/chroma_db
+
+It will rebuild automatically (embedding every chunk fresh) the first time
+the dense retriever is used after this — that first call will be slower
+than usual (loading the sentence-transformers encoder + re-embedding).
+
+---------------------------------------------------------------------------
+STEP 4 — Reset and repopulate the database
+---------------------------------------------------------------------------
+*** DESTRUCTIVE: this drops and recreates every LAPAS table, deleting ALL
+*** current rows — every applicant, prediction, and RAG explanation
+*** currently in the database, not just old/dummy data. Make sure you don't
+*** need anything currently in there before running this.
+
+Samples data/processed/loan_features.csv (now on the ZAR scale), bulk-
+inserts applicants + engineered features, and runs every sampled row through
+the newly retrained model + LIME to produce real predictions.
+
+    .venv/bin/python -m scripts.populate_db
+
+Optional: smaller/faster sample for quick testing:
+    .venv/bin/python -m scripts.populate_db --sample-size 500
+
+---------------------------------------------------------------------------
+STEP 5 — Start the app and verify
+---------------------------------------------------------------------------
+Terminal 1:
+    .venv/bin/python -m uvicorn backend.main:app --reload --port 8000
+
+Terminal 2:
+    .venv/bin/python -m streamlit run frontend/Home.py
+
+Verification checklist:
+  [ ] Customers / Dashboard pages show applicants with realistic ZAR income
+      and loan figures (incomes mostly tens of thousands to a few hundred
+      thousand Rand, not the old ~R50k-ish USD-mislabeled numbers).
+  [ ] Submit a new application on the Loan Application page using a realistic
+      SA income (e.g. R180,000) and loan amount (e.g. R25,000) — outcome and
+      AI advisory report should generate without the earlier Numeric-overflow
+      or timeout issues.
+  [ ] On the AI Advisory page, switch the retriever to "Dense Embedding
+      (Chroma)" and generate a report — the Policy References section should
+      quote the UPDATED income-bucket figures (R140,807 / R200,000 /
+      R285,733), not the old ones, confirming the Chroma index actually
+      rebuilt in Step 3.
+  [ ] Findings page → Classifier Comparison reflects the freshly retrained
+      models/model_comparison.csv.
+
+---------------------------------------------------------------------------
+OPTIONAL — Refresh the retrieval benchmark (Experiment 2)
+---------------------------------------------------------------------------
+Only needed if you want reports/tfidf_chroma_metrics.csv and its charts
+(served by the Findings page's retrieval-comparison tab) to reflect the
+edited policy documents. Not required for the app itself to work correctly.
+
+    .venv/bin/python -m scripts.tfidf_chroma

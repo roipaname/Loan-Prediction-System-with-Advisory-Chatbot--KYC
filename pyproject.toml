@@ -43,4 +43,6 @@ dependencies = [
     "requests>=2.32.0",
     # Per-applicant local feature attribution (LIME replaces SHAP — no numba/llvmlite)
     "lime>=0.2.0.1",
+    # Markdown -> HTML rendering for AI advisory report display
+    "markdown>=3.6",
 ]

@@ -44,10 +44,22 @@ log = logging.getLogger(__name__)
 
 PIPELINE_VERSION = "1.0.0"
 
-# Income bucket thresholds (approx. dataset quartiles)
-INCOME_LOW_MAX        = 47_204
-INCOME_LOW_MED_MAX    = 67_048
-INCOME_MED_MAX        = 95_789
+# Source dataset (Kaggle "Loan Approval Classification Data") is denominated
+# in USD. Values are not FX-converted (a flat USD->ZAR exchange-rate multiply
+# would not produce a realistic South African income/loan distribution, and
+# would still leave the model implicitly trained on a US income shape);
+# instead person_income and loan_amnt are linearly rescaled so the dataset's
+# original median annual income ($67,048) maps to a representative South
+# African median formal-sector annual income of R200,000. The same factor is
+# applied to both columns so the loan-to-income ratio structure the model
+# learns from (loan_percent_income, affordability_ratio, etc.) is unchanged
+# by the rescale — see rescale_to_zar() below.
+ZAR_INCOME_LOAN_SCALE = 200_000 / 67_048  # ~= 2.9829
+
+# Income bucket thresholds (dataset quartiles, rescaled to ZAR)
+INCOME_LOW_MAX        = round(47_204 * ZAR_INCOME_LOAN_SCALE)
+INCOME_LOW_MED_MAX    = round(67_048 * ZAR_INCOME_LOAN_SCALE)
+INCOME_MED_MAX        = round(95_789 * ZAR_INCOME_LOAN_SCALE)
 
 # Credit score tier bands (standard US definitions)
 CREDIT_SCORE_TIERS = [
@@ -173,6 +185,29 @@ def clean_raw(df: pd.DataFrame) -> pd.DataFrame:
         log.warning("Capping %d age outliers (>100) to 100", outlier_ages.sum())
         df.loc[outlier_ages, "person_age"] = 100.0
 
+    return df
+
+
+# ---------------------------------------------------------------------------
+# Step 2b — Rescale USD source values to a ZAR-realistic range
+# ---------------------------------------------------------------------------
+
+def rescale_to_zar(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Rescale the USD-denominated person_income and loan_amnt columns to a
+    South African-realistic range (see ZAR_INCOME_LOAN_SCALE above). Must run
+    after clean_raw() (numeric coercion) and before any derived feature that
+    reads person_income / loan_amnt, so every downstream ratio is computed
+    from the rescaled figures.
+    """
+    log.info(
+        "Rescaling person_income and loan_amnt to ZAR (factor=%.4f, "
+        "source median $67,048 -> target median R200,000) …",
+        ZAR_INCOME_LOAN_SCALE,
+    )
+    df = df.copy()
+    df["person_income"] = (df["person_income"] * ZAR_INCOME_LOAN_SCALE).round(2)
+    df["loan_amnt"]     = (df["loan_amnt"] * ZAR_INCOME_LOAN_SCALE).round(2)
     return df
 
 
@@ -485,6 +520,7 @@ def run_pipeline(
 
     # --- Transform ---
     df = clean_raw(df)
+    df = rescale_to_zar(df)
     df = add_financial_ratios(df)
     df = add_age_employment_features(df)
     df = add_credit_features(df)

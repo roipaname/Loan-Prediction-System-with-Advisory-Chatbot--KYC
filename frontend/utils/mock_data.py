@@ -49,10 +49,10 @@ def _build_raw() -> pd.DataFrame:
     ages      = np.random.normal(38, 11, N).clip(21, 70).round(1)
     genders   = np.random.choice(GENDERS, N, p=[0.47, 0.50, 0.03])
     edus      = np.random.choice(EDUCATIONS, N, p=[0.18, 0.38, 0.12, 0.10, 0.17, 0.05])
-    incomes   = np.random.lognormal(10.9, 0.55, N).clip(18_000, 300_000).round(2)
+    incomes   = np.random.lognormal(12.21, 0.55, N).clip(50_000, 900_000).round(2)
     emp_exp   = np.random.randint(0, 26, N)
     home_own  = np.random.choice(HOME_OWN, N, p=[0.42, 0.18, 0.36, 0.04])
-    loan_amt  = np.random.lognormal(9.2, 0.75, N).clip(500, 50_000).round(2)
+    loan_amt  = np.random.lognormal(10.08, 0.75, N).clip(1_500, 105_000).round(2)
     intents   = np.random.choice(INTENTS, N, p=[0.20, 0.18, 0.15, 0.12, 0.25, 0.10])
     grades    = np.random.choice(GRADES,  N, p=[0.18, 0.28, 0.25, 0.16, 0.08, 0.04, 0.01])
     int_rates = np.random.normal(12.5, 4.5, N).clip(4.5, 28).round(2)
@@ -107,9 +107,9 @@ def _add_engineered(df: pd.DataFrame) -> pd.DataFrame:
     df['credit_score_tier'] = df['credit_score'].apply(score_tier)
 
     def income_bucket(i):
-        if i < 35_000:  return 'low'
-        if i < 65_000:  return 'mid_low'
-        if i < 120_000: return 'medium'
+        if i < 140_807:  return 'low'
+        if i < 200_000:  return 'mid_low'
+        if i < 285_733:  return 'medium'
         return 'high'
 
     df['income_bucket'] = df['person_income'].apply(income_bucket)
@@ -161,12 +161,12 @@ def _add_shap(df: pd.DataFrame) -> pd.DataFrame:
             'credit_score':                     round((r['credit_score'] - 580) / 300 * 0.32, 4),
             'loan_percent_income':              round(-(r['loan_percent_income'] - 0.20) * 0.75, 4),
             'previous_loan_defaults_on_file':   round(-0.18 if r['previous_loan_defaults_on_file'] else 0.09, 4),
-            'person_income':                    round((np.log(max(r['person_income'], 1)) - np.log(50_000)) / 10 * 0.18, 4),
+            'person_income':                    round((np.log(max(r['person_income'], 1)) - np.log(200_000)) / 10 * 0.18, 4),
             'loan_int_rate':                    round(-(r['loan_int_rate'] - 10) / 18 * 0.14, 4),
             'person_emp_exp':                   round((r['person_emp_exp'] - 5) / 25 * 0.10, 4),
             'debt_to_income_ratio':             round(-(r['debt_to_income_ratio'] - 0.30) * 0.20, 4),
             'cb_person_cred_hist_length':       round((r['cb_person_cred_hist_length'] - 4) / 25 * 0.08, 4),
-            'loan_amnt':                        round(-(r['loan_amnt'] - 10_000) / 45_000 * 0.09, 4),
+            'loan_amnt':                        round(-(r['loan_amnt'] - 24_000) / 134_000 * 0.09, 4),
             'person_age':                       round((r['person_age'] - 35) / 30 * 0.05, 4),
         }
         # Sort by absolute value descending
