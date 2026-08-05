@@ -1,12 +1,8 @@
 """
-backend/services/lime_service.py
-=================================
-Per-applicant local feature attribution using LIME (lime_tabular), not SHAP.
-requirements.txt already documents why: "LIME replaces SHAP — no numba/llvmlite"
-on this macOS Intel machine. LoanClassifier.get_feature_importance() only
-exposes *global* importances, so LIME is what actually answers "why did THIS
-applicant get this outcome" — the same question the UI's ModelPrediction
-.shap_values column was designed to answer.
+Per-applicant local feature attribution via LIME, not SHAP (numba/llvmlite
+is unstable on this machine). get_feature_importance() on the classifier
+only gives global importances, this answers "why did this one applicant
+get this outcome".
 """
 from __future__ import annotations
 

@@ -19,7 +19,7 @@ Typography:
 import streamlit as st
 import os as _os
 
-# ── Absolute path to logo (works from any page) ───────────────────────────────
+# absolute path to logo (works from any page)
 _STYLES_DIR = _os.path.dirname(_os.path.abspath(__file__))
 _LOGO_PATH  = _os.path.join(_STYLES_DIR, '..', 'assets', 'logo.png')
 
@@ -33,7 +33,7 @@ def get_logo_image():
         return None
 
 
-# ── Colour constants (also imported by page scripts for Plotly charts) ────────
+# colour constants (also imported by page scripts for plotly charts)
 GOLD       = "#C9A96B"   # bronze-gold (logo midpoint)
 GOLD_LT    = "#D9BC82"   # lighter highlight gold
 GOLD_DK    = "#8E6B35"   # dark bronze shadow
@@ -57,15 +57,15 @@ BORDER2    = "#3C362E"
 
 _CSS = f"""
 <style>
-/* ── Google Fonts: Playfair Display (headings) + Inter (body) ────────── */
+/* google fonts: playfair display (headings) + inter (body) */
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-/* ── Root ─────────────────────────────────────────────────────────────── */
+/* root */
 html, body, [class*="css"] {{
     font-family: 'Inter', sans-serif !important;
 }}
 
-/* ── App background ───────────────────────────────────────────────────── */
+/* app background */
 .stApp {{
     background-color: {BG};
     color: {TEXT};
@@ -76,7 +76,7 @@ html, body, [class*="css"] {{
     max-width: 1420px;
 }}
 
-/* ── Sidebar ──────────────────────────────────────────────────────────── */
+/* sidebar */
 [data-testid="stSidebar"] {{
     background: linear-gradient(180deg, #0E0C09 0%, {CARD} 55%, #131109 100%) !important;
     border-right: 1px solid {BORDER} !important;
@@ -110,7 +110,7 @@ html, body, [class*="css"] {{
     font-weight: 500;
 }}
 
-/* ── Metric cards ─────────────────────────────────────────────────────── */
+/* metric cards */
 [data-testid="metric-container"] {{
     background: linear-gradient(145deg, {CARD} 0%, {CARD2} 100%);
     border: 1px solid {BORDER};
@@ -155,7 +155,7 @@ html, body, [class*="css"] {{
     font-size: 0.76rem !important;
 }}
 
-/* ── Buttons ──────────────────────────────────────────────────────────── */
+/* buttons */
 .stButton > button {{
     background: linear-gradient(135deg, {GOLD} 0%, {GOLD_DK} 100%);
     color: #100E0A;
@@ -193,7 +193,7 @@ html, body, [class*="css"] {{
     background: linear-gradient(135deg, {CARD3} 0%, #302A22 100%) !important;
 }}
 
-/* ── Inputs ───────────────────────────────────────────────────────────── */
+/* inputs */
 .stTextInput input,
 .stNumberInput input,
 .stTextArea textarea {{
@@ -240,7 +240,7 @@ html, body, [class*="css"] {{
     color: {GOLD_LT} !important;
 }}
 
-/* ── Tabs ─────────────────────────────────────────────────────────────── */
+/* tabs */
 .stTabs [data-baseweb="tab-list"] {{
     background-color: {CARD};
     border-radius: 12px;
@@ -271,7 +271,7 @@ html, body, [class*="css"] {{
     display: none !important;
 }}
 
-/* ── Expander ─────────────────────────────────────────────────────────── */
+/* expander */
 [data-testid="stExpander"] {{
     background: {CARD};
     border: 1px solid {BORDER};
@@ -282,27 +282,27 @@ html, body, [class*="css"] {{
     font-size: 0.9rem;
 }}
 
-/* ── Dataframe ────────────────────────────────────────────────────────── */
+/* dataframe */
 [data-testid="stDataFrame"] {{
     border: 1px solid {BORDER};
     border-radius: 12px;
     overflow: hidden;
 }}
 
-/* ── Divider ──────────────────────────────────────────────────────────── */
+/* divider */
 hr {{
     border: none;
     border-top: 1px solid {BORDER};
     margin: 1.2rem 0;
 }}
 
-/* ── Scrollbar ────────────────────────────────────────────────────────── */
+/* scrollbar */
 ::-webkit-scrollbar       {{ width: 6px; height: 6px; }}
 ::-webkit-scrollbar-track {{ background: {BG2}; }}
 ::-webkit-scrollbar-thumb {{ background: {BORDER2}; border-radius: 3px; }}
 ::-webkit-scrollbar-thumb:hover {{ background: {GOLD_DK}; }}
 
-/* ── Shared HTML components ───────────────────────────────────────────── */
+/* shared html components */
 
 /* Section heading — uses small caps feel */
 .section-header {{
@@ -715,7 +715,7 @@ def inject():
 def sidebar_logo():
     """Render the LAPAS logo + wordmark + tagline in the sidebar, centered."""
     import base64 as _b64
-    # Encode logo as base64 so we can center it with CSS text-align
+    # base64-encode so we can center it with CSS text-align
     _logo_b64 = ""
     try:
         with open(_LOGO_PATH, 'rb') as _f:
@@ -740,7 +740,7 @@ def sidebar_logo():
             unsafe_allow_html=True,
         )
 
-    # Wordmark + tagline
+    # wordmark + tagline
     st.sidebar.markdown(
         f'<div style="text-align:center;margin-top:4px;margin-bottom:4px;">'
         f'<div style="font-family:\'Playfair Display\',Georgia,serif;'
@@ -760,7 +760,7 @@ def sidebar_logo():
     )
 
 
-# ── Plotly chart base layout (shared across all pages) ────────────────────────
+# plotly chart base layout (shared across all pages)
 CHART_LAYOUT = dict(
     paper_bgcolor='rgba(0,0,0,0)',
     plot_bgcolor='rgba(20,18,14,0.50)',

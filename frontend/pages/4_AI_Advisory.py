@@ -28,7 +28,7 @@ df, using_mock = api_client.get_applicants_safe()
 if using_mock:
     st.warning("Backend unavailable — showing sample data.")
 
-# ── Page header ────────────────────────────────────────────────────────────────
+# page header
 st.markdown(f"""
 <div style="margin-bottom:1rem;display:flex;align-items:center;gap:0.6rem;">
   {_icon('cpu-chip',26,GOLD)}
@@ -38,7 +38,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Customer selector ─────────────────────────────────────────────────────────
+# customer selector
 all_ids = ["— Select an applicant —"] + [f"APP-{i}" for i in df['id'].tolist()]
 preselect = 0
 if 'selected_customer' in st.session_state:
@@ -61,7 +61,7 @@ if selected == "— Select an applicant —":
     """, unsafe_allow_html=True)
     st.stop()
 
-# ── Load applicant ────────────────────────────────────────────────────────────
+# load applicant
 app_id = selected.replace("APP-", "")
 row = df[df['id'] == app_id].iloc[0]
 
@@ -74,7 +74,7 @@ risk_col  = {
 badge     = (f'<span class="badge-approved">Approved</span>'
              if approved else f'<span class="badge-rejected">Rejected</span>')
 
-# ── Profile card ──────────────────────────────────────────────────────────────
+# profile card
 st.markdown(f"""
 <div style="background:linear-gradient(135deg,{CARD} 0%,{CARD2} 100%);
             border:1px solid {BORDER};border-radius:18px;overflow:hidden;
@@ -117,10 +117,10 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Three tabs ────────────────────────────────────────────────────────────────
+# three tabs
 t1, t2, t3 = st.tabs(["Feature Attribution (LIME)", "AI Explanation", "Next Steps"])
 
-# ─── Tab 1: Feature Attribution ───────────────────────────────────────────────
+# tab 1: feature attribution
 with t1:
     from src.ai_advisor.loan_context_builder import _readable_name as nice_name
     shap_dict = row['shap_values']
@@ -181,7 +181,7 @@ with t1:
             unsafe_allow_html=True,
         )
 
-# ─── Tab 2: AI Explanation ────────────────────────────────────────────────────
+# tab 2: ai explanation
 with t2:
     e1, e2 = st.columns([2, 1], gap="large")
 
@@ -244,7 +244,7 @@ with t2:
             unsafe_allow_html=True,
         )
 
-# ─── Tab 3: Next Steps ────────────────────────────────────────────────────────
+# tab 3: next steps
 with t3:
     if approved:
         steps = [
@@ -300,7 +300,7 @@ with t3:
         unsafe_allow_html=True,
     )
 
-    # ── PDF Export ────────────────────────────────────────────────────────────
+    # pdf export
     st.markdown('<div class="gold-divider"></div>', unsafe_allow_html=True)
     st.markdown(f'<div style="font-size:0.82rem;color:{TEXT2};margin-bottom:0.6rem;display:flex;align-items:center;gap:0.4rem;">'
                 f'{_icon("document-arrow-down",15,TEXT2)} Export this advisory report as a PDF or text file.</div>',

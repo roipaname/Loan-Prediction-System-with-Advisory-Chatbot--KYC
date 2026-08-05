@@ -35,18 +35,10 @@ from src.classifier.logistic_regression import CustomLogisticRegression
 
 log = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Type aliases
-# ---------------------------------------------------------------------------
-
 AlgorithmName = Literal["random_forest", "xgboost", "naive_bayes", "logistic_regression"]
 TuningStrategy = Literal["grid", "random"]
 
-
-# ---------------------------------------------------------------------------
-# Default hyper-parameter search spaces
-# ---------------------------------------------------------------------------
-
+# default hyperparameter search spaces
 _DEFAULT_PARAM_GRIDS: Dict[str, Dict[str, list]] = {
     "random_forest": {
         "classifier__n_estimators":      [100, 200, 300],
@@ -76,7 +68,7 @@ _DEFAULT_PARAM_GRIDS: Dict[str, Dict[str, list]] = {
     },
 }
 
-# Smaller random-search distributions (subset of the grid)
+# smaller random-search distributions (subset of the grid)
 _DEFAULT_PARAM_DISTRIBUTIONS: Dict[str, Dict[str, Any]] = {
     "random_forest": {
         "classifier__n_estimators":      [50, 100, 200, 400],
@@ -108,30 +100,14 @@ _DEFAULT_PARAM_DISTRIBUTIONS: Dict[str, Dict[str, Any]] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# LoanClassifier
-# ---------------------------------------------------------------------------
-
 class LoanClassifier:
     """
-    Unified loan-prediction classifier.
-
-    Parameters
-    ----------
-    algorithm : str
-        One of 'random_forest', 'xgboost', 'naive_bayes', 'logistic_regression'.
-    random_state : int
-        Seed used for all stochastic components.
-    class_weight : {'balanced', None} or dict
-        Class weighting strategy (not supported by naive_bayes; ignored there).
-    calibrate : bool
-        Wrap the fitted estimator in CalibratedClassifierCV (sigmoid method)
-        to improve probability estimates.  Adds a second CV pass.
-    scale_features : bool
-        Prepend a StandardScaler in the pipeline.  Recommended for
-        logistic_regression and naive_bayes.
-    **model_kwargs
-        Extra keyword arguments forwarded to the underlying estimator constructor.
+    Unified loan-prediction classifier wrapping random_forest, xgboost,
+    naive_bayes, or logistic_regression behind one API. class_weight is
+    ignored for naive_bayes. calibrate wraps the estimator in
+    CalibratedClassifierCV (sigmoid) for better probability estimates, at
+    the cost of a second CV pass. scale_features prepends a StandardScaler,
+    recommended for logistic_regression/naive_bayes.
     """
 
     def __init__(
@@ -160,10 +136,6 @@ class LoanClassifier:
         self.best_params_: Optional[dict]  = None
         self.feature_names_: Optional[list] = None
         self._is_fitted = False
-
-    # ------------------------------------------------------------------
-    # Estimator factory
-    # ------------------------------------------------------------------
 
     def _build_estimator(self, **overrides: Any) -> Any:
         """Instantiate the raw estimator (no scaler, no calibration)."""
@@ -211,30 +183,13 @@ class LoanClassifier:
         steps.append(("classifier", estimator))
         return Pipeline(steps)
 
-    # ------------------------------------------------------------------
-    # Fit
-    # ------------------------------------------------------------------
-
     def fit(
         self,
         X: Union[np.ndarray, pd.DataFrame],
         y: Union[np.ndarray, pd.Series],
         feature_names: Optional[list] = None,
     ) -> "LoanClassifier":
-        """
-        Fit the classifier.
-
-        Parameters
-        ----------
-        X : array-like of shape (n_samples, n_features)
-        y : array-like of shape (n_samples,)
-        feature_names : list, optional
-            Column names for feature-importance reporting.
-
-        Returns
-        -------
-        self
-        """
+        """Fit the classifier. feature_names is used for importance reporting."""
         if isinstance(X, pd.DataFrame):
             feature_names = feature_names or list(X.columns)
             X = X.values
@@ -243,7 +198,7 @@ class LoanClassifier:
 
         self.feature_names_ = feature_names
 
-        # For XGBoost + balanced, compute scale_pos_weight from y
+        # xgboost + balanced: compute scale_pos_weight from y
         kwargs: Dict[str, Any] = {}
         if self.algorithm == "xgboost" and self.class_weight == "balanced":
             neg = np.sum(y == 0)
@@ -263,10 +218,6 @@ class LoanClassifier:
         log.info("Fitted %s classifier.", self.algorithm)
         return self
 
-    # ------------------------------------------------------------------
-    # Predict
-    # ------------------------------------------------------------------
-
     def predict(self, X: Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
         self._check_fitted()
         if isinstance(X, pd.DataFrame):
@@ -278,10 +229,6 @@ class LoanClassifier:
         if isinstance(X, pd.DataFrame):
             X = X.values
         return self.pipeline_.predict_proba(X)
-
-    # ------------------------------------------------------------------
-    # Hyper-parameter tuning
-    # ------------------------------------------------------------------
 
     def tune(
         self,
@@ -296,31 +243,13 @@ class LoanClassifier:
         refit: bool = True,
         verbose: int = 1,
     ) -> "LoanClassifier":
-        """
-        Run hyper-parameter search.
-
-        Parameters
-        ----------
-        X, y : training data
-        strategy : 'grid' (exhaustive) or 'random' (sampled, faster)
-        param_grid : custom search space; defaults to built-in grids
-        scoring : sklearn scoring string
-        cv : number of CV folds
-        n_iter : number of random candidates (strategy='random' only)
-        n_jobs : parallel jobs
-        refit : if True, refit the best model on the full dataset
-        verbose : verbosity level for the searcher
-
-        Returns
-        -------
-        self  (self.best_params_ is populated)
-        """
+        """Run hyperparameter search (strategy='grid' or 'random').
+        Populates self.best_params_; refits on the full data if refit=True."""
         if isinstance(X, pd.DataFrame):
             X = X.values
         if isinstance(y, pd.Series):
             y = y.values
 
-        # Build a fresh pipeline to search over
         estimator = self._build_estimator()
         pipeline  = self._build_pipeline(estimator)
 
@@ -369,25 +298,14 @@ class LoanClassifier:
 
         return self
 
-    # ------------------------------------------------------------------
-    # Evaluation
-    # ------------------------------------------------------------------
-
     def evaluate(
         self,
         X: Union[np.ndarray, pd.DataFrame],
         y: Union[np.ndarray, pd.Series],
         threshold: float = 0.5,
     ) -> Dict[str, Any]:
-        """
-        Compute a full evaluation suite.
-
-        Returns
-        -------
-        dict with keys:
-            accuracy, roc_auc, f1_macro, f1_weighted,
-            confusion_matrix, classification_report, threshold
-        """
+        """Full evaluation suite: accuracy, roc_auc, f1_macro, f1_weighted,
+        confusion_matrix, classification_report, threshold."""
         self._check_fitted()
         if isinstance(X, pd.DataFrame):
             X = X.values
@@ -443,18 +361,9 @@ class LoanClassifier:
         log.info("CV %s: %.4f ± %.4f", scoring, result["mean"], result["std"])
         return result
 
-    # ------------------------------------------------------------------
-    # Feature importance
-    # ------------------------------------------------------------------
-
     def get_feature_importance(self) -> Optional[pd.DataFrame]:
-        """
-        Return a DataFrame of feature importances sorted descending.
-
-        Supports RandomForest (feature_importances_), XGBoost (feature_importances_),
-        and CustomLogisticRegression (absolute coefficients).
-        Naive Bayes does not expose feature importances — returns None.
-        """
+        """Feature importances sorted descending (feature_importances_ for
+        RF/XGBoost, |coef_| for logistic regression). None for naive_bayes."""
         self._check_fitted()
         estimator = self._get_base_estimator()
 
@@ -476,26 +385,9 @@ class LoanClassifier:
         )
         return df
 
-    # ------------------------------------------------------------------
-    # Save / Load
-    # ------------------------------------------------------------------
-
     def save(self, path: Union[str, Path]) -> Path:
-        """
-        Persist the classifier to disk.
-
-        Saves two files:
-          <path>.joblib  — serialised pipeline
-          <path>.json    — metadata (algorithm, params, timestamp …)
-
-        Parameters
-        ----------
-        path : file path *without* extension
-
-        Returns
-        -------
-        Path to the .joblib file
-        """
+        """Save to <path>.joblib (pipeline) + <path>.json (metadata).
+        path is given without extension. Returns the .joblib path."""
         self._check_fitted()
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -520,17 +412,7 @@ class LoanClassifier:
 
     @classmethod
     def load(cls, path: Union[str, Path]) -> "LoanClassifier":
-        """
-        Load a previously saved classifier.
-
-        Parameters
-        ----------
-        path : file path *without* extension  (same as used in save())
-
-        Returns
-        -------
-        LoanClassifier instance
-        """
+        """Load a classifier saved via save() (path without extension)."""
         path       = Path(path)
         model_path = path.with_suffix(".joblib")
 
@@ -540,10 +422,6 @@ class LoanClassifier:
         instance = joblib.load(model_path)
         log.info("Model loaded ← %s", model_path)
         return instance
-
-    # ------------------------------------------------------------------
-    # Convenience
-    # ------------------------------------------------------------------
 
     def _check_fitted(self) -> None:
         if not self._is_fitted or self.pipeline_ is None:
@@ -555,7 +433,6 @@ class LoanClassifier:
         """Unwrap Pipeline (and optional CalibratedClassifierCV) to the raw estimator."""
         est = self.pipeline_.named_steps["classifier"]
         if isinstance(est, CalibratedClassifierCV):
-            # After fit, calibrated_classifiers_ holds the base models
             est = est.estimator
         return est
 
@@ -590,9 +467,6 @@ if __name__ == "__main__":
     print("LOAN CLASSIFIER TEST SUITE")
     print("=" * 80)
 
-    # ------------------------------------------------------------------
-    # Dataset
-    # ------------------------------------------------------------------
     data = load_breast_cancer()
 
     X = data.data
@@ -623,9 +497,6 @@ if __name__ == "__main__":
     except ImportError:
         print("\nXGBoost not installed - skipping")
 
-    # ------------------------------------------------------------------
-    # Test All Algorithms
-    # ------------------------------------------------------------------
     for algorithm in algorithms:
 
         print("\n" + "=" * 80)
@@ -642,9 +513,6 @@ if __name__ == "__main__":
             random_state=42,
         )
 
-        # --------------------------------------------------------------
-        # Train
-        # --------------------------------------------------------------
         print("\nTraining...")
         classifier.fit(
             X_train,
@@ -655,9 +523,6 @@ if __name__ == "__main__":
         print("\nSummary:")
         print(classifier.summary())
 
-        # --------------------------------------------------------------
-        # Evaluation
-        # --------------------------------------------------------------
         results = classifier.evaluate(X_test, y_test)
 
         print("\nEvaluation Results")
@@ -673,9 +538,6 @@ if __name__ == "__main__":
         print("\nClassification Report")
         print(results["classification_report"])
 
-        # --------------------------------------------------------------
-        # Cross Validation
-        # --------------------------------------------------------------
         print("\nCross Validation")
 
         cv_results = classifier.cross_validate(
@@ -691,9 +553,6 @@ if __name__ == "__main__":
             f"{cv_results['std']:.4f}"
         )
 
-        # --------------------------------------------------------------
-        # Feature Importance
-        # --------------------------------------------------------------
         importance_df = classifier.get_feature_importance()
 
         if importance_df is not None:
@@ -702,9 +561,6 @@ if __name__ == "__main__":
                 importance_df.head(10).to_string(index=False)
             )
 
-        # --------------------------------------------------------------
-        # Save / Load Test
-        # --------------------------------------------------------------
         print("\nTesting Save / Load")
 
         save_path = Path(

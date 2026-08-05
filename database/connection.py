@@ -53,15 +53,12 @@ if __name__ == "__main__":
 
     import random
 
-    # ✅ Initialize connection
     conn = Connection()
 
     try:
         with conn.get_db() as db:
 
-            # =========================================================
-            # 1. Create Dummy Loan Applicant
-            # =========================================================
+            # 1. dummy loan applicant
             applicant = LoanApplicant(
                 person_age=30,
                 person_gender="male",
@@ -86,9 +83,7 @@ if __name__ == "__main__":
 
             print(f"Created Applicant: {applicant.id}")
 
-            # =========================================================
-            # 2. Engineered Features
-            # =========================================================
+            # 2. engineered features
             features = EngineeredFeatures(
                 applicant_id=applicant.id,
                 debt_to_income_ratio=0.25,
@@ -102,9 +97,7 @@ if __name__ == "__main__":
 
             db.add(features)
 
-            # =========================================================
-            # 3. ML Model
-            # =========================================================
+            # 3. ML model
             model = MLModel(
                 algorithm=ModelAlgorithmEnum.random_forest,
                 is_from_scratch=False,
@@ -121,9 +114,7 @@ if __name__ == "__main__":
 
             print(f"Created Model: {model.id}")
 
-            # =========================================================
-            # 4. Prediction
-            # =========================================================
+            # 4. prediction
             prediction = ModelPrediction(
                 applicant_id=applicant.id,
                 model_id=model.id,

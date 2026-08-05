@@ -45,9 +45,7 @@ def _err(tab_name: str, exc: Exception):
 
 tab1, tab2 = st.tabs(["Retrieval: TF-IDF vs Dense Embeddings", "Classifier Comparison"])
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# TAB 1 – Retrieval benchmark
-# ═══════════════════════════════════════════════════════════════════════════════
+# tab 1 – retrieval benchmark
 with tab1:
     try:
         rdf = api_client.get_retrieval_comparison()
@@ -132,9 +130,7 @@ with tab1:
     except Exception as _e:
         _err("Retrieval Comparison", _e)
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# TAB 2 – Classifier comparison
-# ═══════════════════════════════════════════════════════════════════════════════
+# tab 2 – classifier comparison
 with tab2:
     try:
         cdf = api_client.get_model_comparison()

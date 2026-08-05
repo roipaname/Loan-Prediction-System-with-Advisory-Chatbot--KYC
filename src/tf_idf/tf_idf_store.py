@@ -1,39 +1,9 @@
 """
-src/tf_idf/tf_idf_store.py
-==========================
-Custom TF-IDF vector database for loan strategy document retrieval.
-
-This module provides a lightweight, self-contained vector store that uses
-TF-IDF (Term Frequency-Inverse Document Frequency) as the embedding strategy
-instead of dense neural embeddings.  The interface mirrors ChromaDB's
-collection API so the two stores are interchangeable in retrieval experiments.
-
-Architecture
-------------
-Documents are encoded as sparse TF-IDF vectors using sklearn's
-TfidfVectorizer.  Queries are transformed into the same vector space at
-search time, and the top-k most similar documents are retrieved via cosine
-similarity.  The full index (vectorizer + matrix + documents) is persisted to
-disk using joblib (vectorizer), scipy NPZ (matrix), and JSON (metadata).
-
-Public API
-----------
-  TFIDFStore(name)
-    .add(documents, metadatas, ids)
-    .query(query_texts, n_results)  -> ChromaDB-compatible dict
-    .count()                        -> int
-    .persist(directory)
-    TFIDFStore.load(directory)      -> TFIDFStore
-    TFIDFStore.from_directory(docs_dir, **kwargs)  -> TFIDFStore
-
-Usage
------
-    from src.tf_idf import TFIDFStore
-
-    store = TFIDFStore.from_directory("data/loan_strategy_docs")
-    results = store.query(["high debt to income ratio"], n_results=3)
-    for doc, score in zip(results["documents"][0], results["distances"][0]):
-        print(f"({score:.4f})  {doc[:120]}...")
+Sparse TF-IDF vector store for loan strategy document retrieval, with a
+ChromaDB-compatible interface (see VectorStore) so the two are interchangeable
+in retrieval experiments. Documents are encoded via sklearn's TfidfVectorizer;
+queries are matched by cosine similarity. Persists as joblib (vectorizer),
+scipy NPZ (matrix), and JSON (documents/metadata/ids).
 """
 from __future__ import annotations
 
@@ -51,28 +21,19 @@ from sklearn.metrics.pairwise import cosine_similarity
 from config.settings import TF_IDF_DIR
 
 class TFIDFStore:
-    """
-    TF-IDF backed vector store with a ChromaDB-compatible query interface.
+    """TF-IDF backed vector store with a ChromaDB-compatible query interface.
+    ngram_range=(1,2) captures bigrams like "debt consolidation" that unigrams
+    alone would miss; sublinear_tf dampens very frequent terms."""
 
-    Parameters
-    ----------
-    name : str
-        Logical name for the collection (used in persistence filenames).
-    max_features : int
-        Maximum vocabulary size.  Larger values improve recall at the cost
-        of memory and search latency.
-    ngram_range : tuple
-        (min_n, max_n) for n-gram extraction.  (1, 2) captures both unigrams
-        and bigrams, which improves matching for multi-word financial terms
-        (e.g. "debt consolidation", "credit score").
-    sublinear_tf : bool
-        Apply log(1 + tf) instead of raw tf.  Reduces the dominance of very
-        frequent terms and generally improves retrieval quality.
-    """
+    # filenames only, joined onto whatever directory persist()/load() get —
+    # must stay relative. TF_IDF_DIR/... here would make them absolute, and
+    # Path.__truediv__ discards the left operand when the right one already
+    # is, silently ignoring the caller's `directory` argument.
+    _VECTORIZER_FILE = "tfidf_vectorizer.joblib"
+    _MATRIX_FILE     = "tfidf_matrix.npz"
+    _DATA_FILE       = "tfidf_data.json"
 
-    _VECTORIZER_FILE = TF_IDF_DIR/"tfidf_vectorizer.joblib"
-    _MATRIX_FILE     = TF_IDF_DIR/"tfidf_matrix.npz"
-    _DATA_FILE       = TF_IDF_DIR/"tfidf_data.json"
+    _DEFAULT_PERSIST_DIR = TF_IDF_DIR
 
     def __init__(
         self,
@@ -97,33 +58,15 @@ class TFIDFStore:
         self._ids: List[str] = []
         self._fitted = False
 
-    # ------------------------------------------------------------------
-    # Ingest
-    # ------------------------------------------------------------------
-
     def add(
         self,
         documents: List[str],
         metadatas: Optional[List[Dict[str, Any]]] = None,
         ids: Optional[List[str]] = None,
     ) -> "TFIDFStore":
-        """
-        Add documents to the store and (re)fit the TF-IDF index.
-
-        Calling add() multiple times is supported: the index is rebuilt from
-        the full corpus each time so that IDF weights remain globally correct.
-        For large corpora, add all documents in a single call where possible.
-
-        Parameters
-        ----------
-        documents : list of raw text strings
-        metadatas : list of dicts with any metadata per document (optional)
-        ids       : list of unique string IDs (auto-generated if omitted)
-
-        Returns
-        -------
-        self
-        """
+        """Add documents and (re)fit the TF-IDF index. Rebuilds from the
+        full corpus each call so IDF weights stay globally correct — for
+        large corpora, prefer one call with everything."""
         if not documents:
             return self
 
@@ -134,7 +77,7 @@ class TFIDFStore:
         if len(metadatas) != n or len(ids) != n:
             raise ValueError("documents, metadatas, and ids must have the same length")
 
-        # Extend corpus; skip documents with duplicate IDs
+        # skip duplicate IDs
         existing_ids = set(self._ids)
         for doc, meta, doc_id in zip(documents, metadatas, ids):
             if doc_id in existing_ids:
@@ -145,7 +88,6 @@ class TFIDFStore:
             self._ids.append(doc_id)
             existing_ids.add(doc_id)
 
-        # Refit on the full corpus so IDF weights account for all documents
         self._matrix = self._vectorizer.fit_transform(self._documents)
         self._fitted = True
 
@@ -155,34 +97,13 @@ class TFIDFStore:
         )
         return self
 
-    # ------------------------------------------------------------------
-    # Query
-    # ------------------------------------------------------------------
-
     def query(
         self,
         query_texts: List[str],
         n_results: int = 5,
     ) -> Dict[str, List[List[Any]]]:
-        """
-        Retrieve the top-n_results most relevant documents for each query.
-
-        The return format mirrors ChromaDB's collection.query() output so the
-        two stores are drop-in replacements in retrieval experiments.
-
-        Parameters
-        ----------
-        query_texts : list of query strings (one result set per query)
-        n_results   : number of documents to return per query
-
-        Returns
-        -------
-        dict with keys:
-            "documents" : list[list[str]]   — retrieved text per query
-            "metadatas" : list[list[dict]]  — metadata per retrieved doc
-            "distances" : list[list[float]] — 1 - cosine_sim (lower = better)
-            "ids"       : list[list[str]]   — document IDs
-        """
+        """Top-n_results most relevant documents per query, in ChromaDB's
+        collection.query() output format (distances = 1 - cosine similarity)."""
         if not self._fitted:
             raise RuntimeError(
                 "TFIDFStore is empty. Call .add() before querying."
@@ -191,8 +112,7 @@ class TFIDFStore:
         n_results = min(n_results, len(self._documents))
         q_matrix = self._vectorizer.transform(query_texts)
 
-        # cosine_similarity returns shape (n_queries, n_docs)
-        sims = cosine_similarity(q_matrix, self._matrix)
+        sims = cosine_similarity(q_matrix, self._matrix)  # shape (n_queries, n_docs)
 
         all_docs, all_metas, all_dists, all_ids = [], [], [], []
         for row in sims:
@@ -211,10 +131,6 @@ class TFIDFStore:
             "ids":       all_ids,
         }
 
-    # ------------------------------------------------------------------
-    # Introspection
-    # ------------------------------------------------------------------
-
     def count(self) -> int:
         """Return the number of documents currently in the store."""
         return len(self._documents)
@@ -231,31 +147,14 @@ class TFIDFStore:
             return []
         return self._vectorizer.get_feature_names_out().tolist()
 
-    # ------------------------------------------------------------------
-    # Persistence
-    # ------------------------------------------------------------------
-
-    def persist(self, directory: Union[str, Path]) -> Path:
-        """
-        Save the fitted store to disk.
-
-        Three files are written:
-          <directory>/tfidf_vectorizer.joblib  — fitted TfidfVectorizer
-          <directory>/tfidf_matrix.npz         — sparse TF-IDF matrix
-          <directory>/tfidf_data.json          — documents, metadatas, ids
-
-        Parameters
-        ----------
-        directory : path to the output directory (created if absent)
-
-        Returns
-        -------
-        Path to the directory containing the saved files.
-        """
+    def persist(self, directory: Union[str, Path, None] = None) -> Path:
+        """Save the fitted store to <directory> (created if absent; defaults
+        to TF_IDF_DIR) as tfidf_vectorizer.joblib + tfidf_matrix.npz +
+        tfidf_data.json. Returns the directory."""
         if not self._fitted:
             raise RuntimeError("Cannot persist an empty TFIDFStore. Call .add() first.")
 
-        directory = Path(directory)
+        directory = Path(directory or self._DEFAULT_PERSIST_DIR)
         directory.mkdir(parents=True, exist_ok=True)
 
         joblib.dump(self._vectorizer, directory / self._VECTORIZER_FILE)
@@ -273,19 +172,10 @@ class TFIDFStore:
         return directory
 
     @classmethod
-    def load(cls, directory: Union[str, Path]) -> "TFIDFStore":
-        """
-        Load a previously persisted TFIDFStore from disk.
-
-        Parameters
-        ----------
-        directory : path that was passed to .persist()
-
-        Returns
-        -------
-        Fully initialised TFIDFStore ready for querying.
-        """
-        directory = Path(directory)
+    def load(cls, directory: Union[str, Path, None] = None) -> "TFIDFStore":
+        """Load a store previously saved via .persist() (same directory,
+        or TF_IDF_DIR if omitted)."""
+        directory = Path(directory or cls._DEFAULT_PERSIST_DIR)
 
         vectorizer_path = directory / cls._VECTORIZER_FILE
         matrix_path     = directory / cls._MATRIX_FILE
@@ -310,10 +200,6 @@ class TFIDFStore:
         log.info("TFIDFStore loaded from %s (%d docs)", directory, store.count())
         return store
 
-    # ------------------------------------------------------------------
-    # Factory helpers
-    # ------------------------------------------------------------------
-
     @classmethod
     def from_directory(
         cls,
@@ -323,24 +209,8 @@ class TFIDFStore:
         name: str = "tfidf_store",
         **kwargs: Any,
     ) -> "TFIDFStore":
-        """
-        Build a TFIDFStore from all text/PDF/DOCX files in a directory.
-
-        Files are split into overlapping chunks before indexing so that
-        long documents are represented by multiple, more specific entries.
-
-        Parameters
-        ----------
-        docs_dir      : directory containing loan strategy documents
-        chunk_size    : target chunk length in words
-        chunk_overlap : words of overlap between consecutive chunks
-        name          : logical store name
-        **kwargs      : forwarded to TFIDFStore.__init__
-
-        Returns
-        -------
-        Fitted TFIDFStore
-        """
+        """Build a TFIDFStore from all text/PDF/DOCX files in a directory,
+        chunked so long documents become multiple, more specific entries."""
         from src.ai_advisor.document_loader import load_documents
 
         docs_dir = Path(docs_dir)
@@ -357,10 +227,6 @@ class TFIDFStore:
         store = cls(name=name, **kwargs)
         store.add(texts, metadatas=metas, ids=ids)
         return store
-
-    # ------------------------------------------------------------------
-    # Dunder helpers
-    # ------------------------------------------------------------------
 
     def __len__(self) -> int:
         return self.count()

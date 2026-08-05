@@ -1,17 +1,7 @@
 """
-src/classifier/evaluate.py
-==========================
-Standalone evaluation utilities for LoanClassifier instances.
-
-Extends the built-in LoanClassifier.evaluate() with additional metrics
-(average precision, Brier score, Matthews Correlation Coefficient) and
-provides multi-model comparison and console reporting tools.
-
-Public API
-----------
-  evaluate_classifier(clf, X, y, *, threshold, label) -> dict
-  compare_classifiers(results)                        -> pd.DataFrame
-  print_report(results, *, show_classification_report, show_confusion_matrix)
+Standalone evaluation utilities for LoanClassifier. Extends the built-in
+.evaluate() with average precision, Brier score, and MCC, plus multi-model
+comparison and console reporting.
 """
 from __future__ import annotations
 
@@ -36,14 +26,10 @@ from sklearn.metrics import (
 from src.classifier.classifier import LoanClassifier
 
 
-# Metrics included in the composite ranking (all higher-is-better).
-# brier_score is handled separately since lower is better.
+# metrics in the composite ranking (all higher-is-better); brier_score is
+# handled separately since lower is better there
 _RANK_METRICS: List[str] = ["roc_auc", "f1_weighted", "avg_precision", "accuracy", "mcc"]
 
-
-# ---------------------------------------------------------------------------
-# Core evaluator
-# ---------------------------------------------------------------------------
 
 def evaluate_classifier(
     clf: LoanClassifier,
@@ -53,30 +39,9 @@ def evaluate_classifier(
     threshold: float = 0.5,
     label: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Compute a full metric suite for one fitted LoanClassifier.
-
-    Covers everything in LoanClassifier.evaluate() plus average precision,
-    Brier score, and MCC — giving a more complete picture for imbalanced
-    loan-approval data where accuracy alone is misleading.
-
-    Parameters
-    ----------
-    clf       : fitted LoanClassifier
-    X         : feature matrix (n_samples, n_features)
-    y         : true binary labels  0=rejected, 1=approved
-    threshold : probability cut-off for the positive class (default 0.5)
-    label     : display name override; defaults to clf.algorithm
-
-    Returns
-    -------
-    dict with keys:
-        label, algorithm, threshold,
-        accuracy, precision, recall, f1_macro, f1_weighted,
-        roc_auc, avg_precision, brier_score, mcc,
-        confusion_matrix (list[list[int]]),
-        classification_report (str)
-    """
+    """Full metric suite for one fitted LoanClassifier: everything in
+    LoanClassifier.evaluate() plus average precision, Brier score, and MCC —
+    accuracy alone is misleading on imbalanced loan-approval data."""
     if isinstance(X, pd.DataFrame):
         X = X.values
     if isinstance(y, pd.Series):
@@ -85,7 +50,7 @@ def evaluate_classifier(
     proba = clf.predict_proba(X)[:, 1]
     preds = (proba >= threshold).astype(int)
 
-    # roc_auc and avg_precision require at least one positive sample
+    # need at least one positive sample
     try:
         auc = float(roc_auc_score(y, proba))
     except ValueError:
@@ -97,24 +62,18 @@ def evaluate_classifier(
         ap = float("nan")
 
     results: Dict[str, Any] = {
-        # --- metadata ---
         "label":     label or clf.algorithm,
         "algorithm": clf.algorithm,
         "threshold": threshold,
-        # --- core metrics ---
         "accuracy":    float(accuracy_score(y, preds)),
         "precision":   float(precision_score(y, preds, zero_division=0)),
         "recall":      float(recall_score(y, preds, zero_division=0)),
         "f1_macro":    float(f1_score(y, preds, average="macro",    zero_division=0)),
         "f1_weighted": float(f1_score(y, preds, average="weighted", zero_division=0)),
-        # --- probability-aware metrics ---
         "roc_auc":       auc,
         "avg_precision": ap,
-        # Brier score measures calibration quality; lower is better
-        "brier_score":   float(brier_score_loss(y, proba)),
-        # MCC is robust to class imbalance (range -1 to +1)
-        "mcc":           float(matthews_corrcoef(y, preds)),
-        # --- detailed breakdowns ---
+        "brier_score":   float(brier_score_loss(y, proba)),   # calibration quality, lower = better
+        "mcc":           float(matthews_corrcoef(y, preds)),  # robust to class imbalance, range -1 to +1
         "confusion_matrix":      confusion_matrix(y, preds).tolist(),
         "classification_report": classification_report(y, preds, zero_division=0),
     }
@@ -131,26 +90,12 @@ def evaluate_classifier(
     return results
 
 
-# ---------------------------------------------------------------------------
-# Multi-model comparison
-# ---------------------------------------------------------------------------
-
 def compare_classifiers(results: List[Dict[str, Any]]) -> pd.DataFrame:
     """
-    Rank multiple evaluate_classifier() result dicts side-by-side.
-
-    Each metric is independently ranked and the composite rank is the
-    average across all metric ranks.  Ties are broken by roc_auc.
-
-    Parameters
-    ----------
-    results : list of dicts from evaluate_classifier()
-
-    Returns
-    -------
-    pd.DataFrame
-        1-indexed (index == rank position), sorted best → worst by
-        composite_rank (ascending).  Columns include all scalar metrics.
+    Rank multiple evaluate_classifier() result dicts side-by-side. Each
+    metric is ranked independently and composite_rank is the average of
+    those per-metric ranks (ties broken by roc_auc). Returns a DataFrame
+    1-indexed by rank position, sorted best to worst (composite_rank asc).
     """
     if not results:
         raise ValueError("results list is empty")
@@ -173,7 +118,7 @@ def compare_classifiers(results: List[Dict[str, Any]]) -> pd.DataFrame:
     ]
     df = pd.DataFrame(rows)
 
-    # Rank each metric independently; Brier score is lower-is-better
+    # brier score is lower-is-better, ranked separately below
     for col in _RANK_METRICS:
         df[f"_r_{col}"] = df[col].rank(ascending=False, method="min")
     df["_r_brier"] = df["brier_score"].rank(ascending=True, method="min")
@@ -189,28 +134,14 @@ def compare_classifiers(results: List[Dict[str, Any]]) -> pd.DataFrame:
     return df
 
 
-# ---------------------------------------------------------------------------
-# Console output
-# ---------------------------------------------------------------------------
-
 def print_report(
     results: Union[Dict[str, Any], List[Dict[str, Any]]],
     *,
     show_classification_report: bool = True,
     show_confusion_matrix: bool = True,
 ) -> None:
-    """
-    Pretty-print evaluation results to stdout.
-
-    Accepts either a single result dict or a list.  When given a list,
-    prints each model individually then adds a side-by-side comparison table.
-
-    Parameters
-    ----------
-    results                     : single dict or list of dicts from evaluate_classifier()
-    show_classification_report  : include per-class breakdown table
-    show_confusion_matrix       : include TN/FP/FN/TP breakdown
-    """
+    """Pretty-print evaluation results to stdout. Accepts a single dict or a
+    list; a list also gets a side-by-side comparison table appended."""
     if isinstance(results, dict):
         results = [results]
 

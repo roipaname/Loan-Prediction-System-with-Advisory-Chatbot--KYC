@@ -15,7 +15,7 @@ random.seed(42)
 
 N = 180
 
-# ── Enum value pools ──────────────────────────────────────────────────────────
+# enum value pools
 GENDERS         = ['male', 'female', 'other']
 EDUCATIONS      = ['High School', 'Bachelor', 'Diploma', 'Associate', 'Master', 'Doctor']
 HOME_OWN        = ['MORTGAGE', 'OWN', 'RENT', 'OTHER']
@@ -44,7 +44,7 @@ _INTENT_ICON_NAMES = {
 RISK_COLORS     = {'Low': '#5C8C6A', 'Medium': '#C4A87A', 'High': '#8C5E62'}
 GRADE_ORDER     = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6}
 
-# ── Core generator ────────────────────────────────────────────────────────────
+# core generator
 def _build_raw() -> pd.DataFrame:
     ages      = np.random.normal(38, 11, N).clip(21, 70).round(1)
     genders   = np.random.choice(GENDERS, N, p=[0.47, 0.50, 0.03])
@@ -253,7 +253,7 @@ Under Basel III Article 147, the current risk profile exceeds the acceptable exp
     return df
 
 
-# ── Public API ────────────────────────────────────────────────────────────────
+# public api
 _CACHE: pd.DataFrame | None = None
 
 

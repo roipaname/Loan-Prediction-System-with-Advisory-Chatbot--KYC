@@ -1,11 +1,7 @@
 """
-utils/api_client.py
-====================
-Thin requests-based client for the LAPAS backend (backend/main.py). Read
-endpoints are cached briefly with st.cache_data since this is a live app, not
-a static report. get_applicants_safe() is what pages should call for the
-main dataset — it falls back to utils.mock_data.get_data() if the backend or
-its database is unreachable, so the app still runs standalone for a demo.
+Thin requests-based client for the LAPAS backend. Read endpoints are cached
+briefly with st.cache_data. get_applicants_safe() is what pages should
+actually call — falls back to mock data if the backend's unreachable.
 """
 from __future__ import annotations
 
@@ -48,12 +44,8 @@ def _fetch_applicants(limit: int = 5000):
 
 
 def get_applicants(limit: int = 5000) -> pd.DataFrame:
-    """
-    Full applicant + engineered-features + latest-prediction dataset, shaped
-    like utils.mock_data.get_data() used to be. Raises BackendUnavailable if
-    the API can't be reached — use get_applicants_safe() for the common,
-    fallback-aware call.
-    """
+    """Full applicant + features + latest-prediction dataset. Raises
+    BackendUnavailable if unreachable — use get_applicants_safe() instead."""
     records = _fetch_applicants(limit=limit)
     df = pd.DataFrame(records)
     if not df.empty:
@@ -91,8 +83,7 @@ def get_prediction(code: str) -> Dict[str, Any]:
 
 
 def generate_advisory(code: str, retriever: str = "tfidf") -> Dict[str, Any]:
-    # LLM generation (plus a bounded retry against a flaky free inference
-    # tier) can legitimately take longer than the default request timeout.
+    # LLM call + retry can take a while, give it a longer timeout
     return _post(f"/predictions/{code}/advisory", retriever=retriever, timeout=100)
 
 

@@ -1,43 +1,10 @@
 """
-src/ai_advisor/advisor.py
-==========================
-HuggingFace-powered loan advisory report generator.
+Generates the loan advisory report: retrieves relevant policy excerpts for
+the applicant, builds a prompt, calls the HuggingFace LLM (falls back to a
+rule-based report if that fails), returns Markdown.
 
-Given a structured applicant context (from LoanContextBuilder) and a
-vector store (VectorStore or TFIDFStore), this module:
-
-  1. Retrieves the most relevant policy document excerpts for this applicant.
-  2. Builds a structured prompt in Mistral instruction format.
-  3. Calls the HuggingFace Inference API (mistralai/Mistral-7B-Instruct-v0.2).
-  4. Returns a polished, styled Markdown advisory report.
-
-Report structure
-----------------
-  # Loan Advisory Report
-  Decision summary, confidence, risk tier
-  ## Key Decision Factors
-  Factors that drove the model's outcome
-  ## Recommended Action Plan  (if rejected)
-  Concrete, timeline-based improvement steps
-  ## Policy References
-  Excerpts from retrieved strategy documents (with source citation)
-  ## Risk Profile Summary
-  Formatted table of the applicant's key metrics
-
-Design notes
-------------
-- No em dashes in the generated output (instructed in the system prompt).
-- Tone is polished, business-friendly, and non-judgemental.
-- The prompt is kept concise to stay within the model's context window while
-  still providing enough context for a high-quality response.
-- Generation parameters are conservative (temperature=0.4) to reduce
-  hallucination risk for a high-stakes financial advisory context.
-
-Public API
-----------
-  LoanAdvisor(vector_store, hf_model, hf_token)
-    .advise(context, n_docs=5) -> str  (Markdown)
-    .advise_and_save(context, output_path, n_docs=5) -> Path
+Report sections: Decision Summary, Key Decision Factors, Recommended Action
+Plan (if rejected), Policy References, Risk Profile Summary.
 """
 from __future__ import annotations
 
@@ -51,10 +18,6 @@ from loguru import logger as log
 
 from config.settings import HF_MODEL, HF_TOKEN
 
-
-# ---------------------------------------------------------------------------
-# Prompt construction helpers
-# ---------------------------------------------------------------------------
 
 def _format_currency(value: float) -> str:
     return f"R{value:,.2f}"
@@ -213,10 +176,6 @@ def _build_prompt(
     return system_block, user_block
 
 
-# ---------------------------------------------------------------------------
-# HuggingFace client wrapper
-# ---------------------------------------------------------------------------
-
 def _call_huggingface(
     system_block: str,
     user_block: str,
@@ -227,22 +186,13 @@ def _call_huggingface(
     request_timeout: float = 25.0,
 ) -> str:
     """
-    Call the HuggingFace Inference API and return the generated text.
+    Call the HuggingFace Inference API via chat_completion() — not
+    text_generation(), which providers now reject for instruct models like
+    this one ("not supported for task text-generation").
 
-    Uses huggingface_hub.InferenceClient's chat_completion(), which routes to
-    whatever provider currently serves this model. text_generation() (the raw
-    "text-generation" task) is not used here: providers backing instruct
-    models like Mistral-7B-Instruct-v0.2 now serve them under the
-    "conversational" task only and reject text_generation() with a ValueError
-    ("... is not supported for task text-generation ...").
-
-    The free-tier serverless backend behind this model intermittently returns
-    a transient "This model is busy, please try again later" error under
-    load, and when busy it can take ~25-30s per attempt to report that (it is
-    not a fast rejection). request_timeout caps how long any single attempt
-    is allowed to hang before we cut it short and retry / fall back, so a
-    busy provider degrades to the rule-based report in bounded time instead
-    of compounding into a very long wait.
+    The free-tier backend can take ~25-30s to report "model is busy" rather
+    than failing fast, so request_timeout bounds each attempt instead of
+    letting a busy provider stall the whole request.
     """
     try:
         from huggingface_hub import InferenceClient
@@ -280,17 +230,9 @@ def _call_huggingface(
     raise last_exc
 
 
-# ---------------------------------------------------------------------------
-# Fallback report (when HuggingFace is unavailable)
-# ---------------------------------------------------------------------------
-
 def _build_financial_narrative(ctx: Dict[str, Any]) -> str:
-    """
-    Three data-driven paragraphs (affordability, credit profile, employment/housing)
-    used to give the rule-based fallback report substantive prose instead of just
-    bullet points and a table, without fabricating anything beyond the applicant's
-    actual submitted and engineered values.
-    """
+    """Three paragraphs (affordability, credit, employment/housing) so the
+    fallback report reads as prose, not just a bullet list and a table."""
     app = ctx["applicant"]
     eng = ctx["engineered"]
 
@@ -311,6 +253,18 @@ def _build_financial_narrative(ctx: Dict[str, Any]) -> str:
     home      = str(app.get("home_ownership", "N/A")).title()
     stability = str(eng.get("employment_stability", "N/A")).title()
 
+    burden_multiple = (monthly_burden / monthly_income) if monthly_income > 0 else float("inf")
+    if afford >= 0.6:
+        afford_sentence = "the applicant retains a comfortable buffer of disposable income after debt service."
+    elif afford > 0.0:
+        afford_sentence = "the margin between income and estimated obligations is comparatively tight."
+    else:
+        afford_sentence = (
+            f"the estimated repayment would consume {burden_multiple:.1f}x the applicant's entire monthly "
+            f"income, meaning the loan is not affordable at the requested amount under any reasonable "
+            f"assessment; the affordability ratio is floored at 0.00 rather than going negative."
+        )
+
     p1 = (
         f"This application requests {_format_currency(loan_amt)} for {intent.lower()} purposes against "
         f"a declared annual income of {_format_currency(income)} ({_format_currency(monthly_income)} per "
@@ -318,8 +272,7 @@ def _build_financial_narrative(ctx: Dict[str, Any]) -> str:
         f"underwriting policy treats as "
         f"{'a loan-to-income concern above the standard 30% threshold' if pct_income > 0.30 else 'within the generally acceptable range below the 30% threshold'}. "
         f"On a monthly basis, the estimated loan repayment burden of {_format_currency(monthly_burden)} "
-        f"corresponds to an affordability ratio of {afford:.2f}, meaning "
-        f"{'the applicant retains a comfortable buffer of disposable income after debt service.' if afford >= 0.6 else 'the margin between income and estimated obligations is comparatively tight.'}"
+        f"corresponds to an affordability ratio of {afford:.2f}, meaning {afford_sentence}"
     )
 
     p2 = (
@@ -340,12 +293,7 @@ def _build_financial_narrative(ctx: Dict[str, Any]) -> str:
 
 
 def _build_fallback_report(ctx: Dict[str, Any], retrieved_docs: List[str], retrieved_metas: List[Dict]) -> str:
-    """
-    Generate a structured Markdown report without calling the LLM.
-
-    Used when the HuggingFace API is unavailable (no token, network error, etc.)
-    so the system remains functional for demonstration and testing.
-    """
+    """Rule-based Markdown report, used when the LLM is unavailable."""
     pred    = ctx["prediction"]
     app     = ctx["applicant"]
     eng     = ctx["engineered"]
@@ -455,21 +403,10 @@ or legal advice. For a formal credit assessment, contact a registered credit pro
 """
 
 
-# ---------------------------------------------------------------------------
-# Main advisor class
-# ---------------------------------------------------------------------------
-
 class LoanAdvisor:
-    """
-    Generates loan advisory Markdown reports using a retrieval-augmented LLM.
-
-    Parameters
-    ----------
-    vector_store : a VectorStore or TFIDFStore instance (must support .query())
-    hf_model     : HuggingFace model ID (default: from config.settings.HF_MODEL)
-    hf_token     : HuggingFace API token (default: from config.settings.HF_TOKEN)
-    use_llm      : if False, use the fallback rule-based report (for testing)
-    """
+    """Generates loan advisory Markdown reports using a retrieval-augmented LLM.
+    vector_store must support .query() (VectorStore or TFIDFStore).
+    use_llm=False skips the LLM and always uses the rule-based report."""
 
     def __init__(
         self,
@@ -490,31 +427,14 @@ class LoanAdvisor:
                 "to LoanAdvisor(), or construct with use_llm=False for the fallback report."
             )
 
-    # ------------------------------------------------------------------
-    # Public interface
-    # ------------------------------------------------------------------
-
     def advise(
         self,
         context: Dict[str, Any],
         n_docs: int = 5,
     ) -> str:
-        """
-        Generate a Markdown advisory report for the given applicant context.
-
-        Retrieves the n_docs most relevant policy document excerpts, builds a
-        structured prompt, calls the HuggingFace LLM, and returns the result.
-        Falls back to a rule-based report if the LLM call fails.
-
-        Parameters
-        ----------
-        context : dict from LoanContextBuilder.build()
-        n_docs  : number of policy excerpts to retrieve and include in the prompt
-
-        Returns
-        -------
-        Markdown-formatted advisory report string
-        """
+        """Generate a Markdown advisory report for this applicant context
+        (from LoanContextBuilder.build()). Falls back to a rule-based report
+        if the LLM call fails."""
         retrieved_docs, retrieved_metas = self._retrieve(context["query_text"], n_docs)
 
         if self.use_llm and self.hf_token:
@@ -540,19 +460,7 @@ class LoanAdvisor:
         output_path: Union[str, Path],
         n_docs: int = 5,
     ) -> Path:
-        """
-        Generate an advisory report and write it to a Markdown file.
-
-        Parameters
-        ----------
-        context     : dict from LoanContextBuilder.build()
-        output_path : where to write the .md file
-        n_docs      : number of policy excerpts to retrieve
-
-        Returns
-        -------
-        Path to the written file
-        """
+        """Generate an advisory report and write it to output_path as Markdown."""
         report = self.advise(context, n_docs=n_docs)
 
         output_path = Path(output_path)
@@ -561,10 +469,6 @@ class LoanAdvisor:
 
         log.success("Advisory report saved to %s", output_path)
         return output_path
-
-    # ------------------------------------------------------------------
-    # Private
-    # ------------------------------------------------------------------
 
     def _retrieve(
         self,

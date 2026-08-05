@@ -13,10 +13,6 @@ from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 from config.settings import LOG_LEVEL
 
 
-# ---------------------------------------------------------------------------
-# Helper
-# ---------------------------------------------------------------------------
-
 def _sigmoid(z: np.ndarray) -> np.ndarray:
     """Numerically stable sigmoid."""
     return np.where(
@@ -26,53 +22,11 @@ def _sigmoid(z: np.ndarray) -> np.ndarray:
     )
 
 
-# ---------------------------------------------------------------------------
-# Custom Logistic Regression
-# ---------------------------------------------------------------------------
-
 class CustomLogisticRegression(BaseEstimator, ClassifierMixin):
     """
-    Logistic Regression trained via mini-batch SGD with Adam updates.
-
-    Parameters
-    ----------
-    lr : float
-        Initial learning rate (default 0.01).
-    max_iter : int
-        Maximum number of full-data passes (epochs).
-    batch_size : int
-        Mini-batch size; -1 uses full-batch gradient descent.
-    penalty : {'l1', 'l2', 'elasticnet', None}
-        Regularisation type.
-    C : float
-        Inverse regularisation strength.  Smaller → stronger regularisation.
-    l1_ratio : float
-        ElasticNet mixing parameter (0 = pure L2, 1 = pure L1).
-    fit_intercept : bool
-        Whether to fit a bias term.
-    tol : float
-        Convergence tolerance on loss improvement.
-    early_stopping : bool
-        Hold out `validation_fraction` of training data; stop when val-loss
-        does not improve for `n_iter_no_change` consecutive epochs.
-    n_iter_no_change : int
-        Patience for early stopping.
-    validation_fraction : float
-        Fraction of training data used as validation split.
-    class_weight : {'balanced', None} or dict
-        Re-weight samples to handle class imbalance.
-    use_adam : bool
-        Use Adam update rule (momentum + RMSProp).
-    beta1 : float
-        Adam first-moment decay (default 0.9).
-    beta2 : float
-        Adam second-moment decay (default 0.999).
-    epsilon : float
-        Adam numerical stability constant.
-    random_state : int, optional
-        Seed for reproducibility.
-    verbose : bool
-        Log training progress every 50 epochs.
+    From-scratch logistic regression, mini-batch SGD with Adam updates
+    (momentum + RMSProp), supporting l1/l2/elasticnet penalties, balanced
+    class weighting, and early stopping on a held-out validation split.
     """
 
     def __init__(
@@ -115,10 +69,6 @@ class CustomLogisticRegression(BaseEstimator, ClassifierMixin):
         self.random_state = random_state
         self.verbose = verbose
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
     def _compute_sample_weights(self, y: np.ndarray) -> np.ndarray:
         """Return per-sample weights according to class_weight setting."""
         n_samples = len(y)
@@ -155,7 +105,7 @@ class CustomLogisticRegression(BaseEstimator, ClassifierMixin):
         loss = np.dot(sw, bce) / sw.sum()
         grad = X_b.T @ ((p - y) * sw) / sw.sum()
 
-        # Regularisation (skip bias at index 0)
+        # skip bias at index 0
         offset = 1 if self.fit_intercept else 0
         if self.penalty and self.C > 0:
             reg_w = w[offset:]
@@ -173,10 +123,6 @@ class CustomLogisticRegression(BaseEstimator, ClassifierMixin):
 
         return float(loss), grad
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     def fit(self, X: np.ndarray, y: np.ndarray) -> "CustomLogisticRegression":
         """Fit the model to training data."""
         X, y = check_X_y(X, y)
@@ -186,7 +132,6 @@ class CustomLogisticRegression(BaseEstimator, ClassifierMixin):
         self.classes_ = self.le_.classes_
         y_enc = self.le_.transform(y).astype(float)
 
-        # Optional validation split
         if self.early_stopping:
             n_val = max(1, int(len(y_enc) * self.validation_fraction))
             idx = rng.permutation(len(y_enc))
@@ -202,7 +147,7 @@ class CustomLogisticRegression(BaseEstimator, ClassifierMixin):
         X_b   = self._add_intercept(X_tr) if self.fit_intercept else X_tr
         w     = np.zeros(X_b.shape[1])
 
-        # Adam moments
+        # adam moments
         m = np.zeros_like(w)
         v = np.zeros_like(w)
         t = 0
@@ -317,9 +262,6 @@ if __name__ == "__main__":
     print("CUSTOM LOGISTIC REGRESSION TEST")
     print("=" * 70)
 
-    # ------------------------------------------------------------------
-    # Load Dataset
-    # ------------------------------------------------------------------
     data = load_breast_cancer()
 
     X = data.data
@@ -330,9 +272,6 @@ if __name__ == "__main__":
     print(f"Samples : {X.shape[0]}")
     print(f"Features: {X.shape[1]}")
 
-    # ------------------------------------------------------------------
-    # Split Data
-    # ------------------------------------------------------------------
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
@@ -341,17 +280,11 @@ if __name__ == "__main__":
         stratify=y
     )
 
-    # ------------------------------------------------------------------
-    # Scale Features
-    # ------------------------------------------------------------------
     scaler = StandardScaler()
 
     X_train = scaler.fit_transform(X_train)
     X_test = scaler.transform(X_test)
 
-    # ------------------------------------------------------------------
-    # Train Model
-    # ------------------------------------------------------------------
     model = CustomLogisticRegression(
         lr=0.001,
         max_iter=1000,
@@ -368,15 +301,9 @@ if __name__ == "__main__":
     print("\nTraining...")
     model.fit(X_train, y_train)
 
-    # ------------------------------------------------------------------
-    # Predictions
-    # ------------------------------------------------------------------
     y_pred = model.predict(X_test)
     y_prob = model.predict_proba(X_test)[:, 1]
 
-    # ------------------------------------------------------------------
-    # Metrics
-    # ------------------------------------------------------------------
     print("\n" + "=" * 70)
     print("RESULTS")
     print("=" * 70)

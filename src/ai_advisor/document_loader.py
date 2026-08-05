@@ -1,27 +1,7 @@
 """
-src/ai_advisor/document_loader.py
-==================================
-Shared document loading and chunking utilities.
-
-Reads .txt, .md, .pdf, and .docx files from a directory and splits them
-into overlapping word-level chunks suitable for both the TF-IDF store and
-the ChromaDB vector store.
-
-Public API
-----------
-  load_documents(directory, chunk_size, chunk_overlap) -> list[dict]
-
-Each returned dict has the form:
-  {
-    "text"    : str,          — chunk text
-    "id"      : str,          — "<stem>_chunk_<index>"
-    "metadata": {
-        "source"      : str,  — original filename (stem)
-        "source_file" : str,  — full filename with extension
-        "chunk_index" : int,  — 0-based position within the file
-        "total_chunks": int,  — total chunks from this file
-    }
-  }
+Reads .txt/.md/.pdf/.docx files from a directory and splits them into
+overlapping word-level chunks, shared by the TF-IDF store and the Chroma
+vector store. load_documents() returns a list of {text, id, metadata} dicts.
 """
 from __future__ import annotations
 
@@ -32,30 +12,13 @@ from typing import Dict, List, Union
 from loguru import logger as log
 
 
-# ---------------------------------------------------------------------------
-# Word-level chunker
-# ---------------------------------------------------------------------------
-
 def _chunk_text(
     text: str,
     chunk_size: int=512,
     chunk_overlap: int=64,
     source: str='',
 ) -> List[Dict]:
-    """
-    Split text into overlapping word-level chunks.
-
-    Parameters
-    ----------
-    text          : raw document text
-    chunk_size    : target chunk length in words
-    chunk_overlap : number of words to repeat between consecutive chunks
-    source        : filename stem used to build chunk IDs and metadata
-
-    Returns
-    -------
-    List of chunk dicts with text, id, and metadata.
-    """
+    """Split text into overlapping word-level chunks."""
     words = text.split()
     if not words:
         return []
@@ -64,7 +27,7 @@ def _chunk_text(
     starts  = range(0, len(words), step)
     raw_chunks = [" ".join(words[i : i + chunk_size]) for i in starts]
 
-    # Drop any trailing chunks that are almost empty (< 10 words)
+    # drop near-empty trailing chunks
     chunks = [c for c in raw_chunks if len(c.split()) >= 10]
     total  = len(chunks)
 
@@ -83,17 +46,13 @@ def _chunk_text(
     ]
 
 
-# ---------------------------------------------------------------------------
-# File-type readers
-# ---------------------------------------------------------------------------
-
 def _read_txt(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
 def _read_pdf(path: Path) -> str:
     try:
-        import pypdf  # type: ignore
+        import pypdf 
 
         reader = pypdf.PdfReader(str(path))
         pages  = [page.extract_text() or "" for page in reader.pages]
@@ -105,7 +64,7 @@ def _read_pdf(path: Path) -> str:
 
 def _read_docx(path: Path) -> str:
     try:
-        import docx  # type: ignore
+        import docx  
 
         doc   = docx.Document(str(path))
         paras = [p.text for p in doc.paragraphs if p.text.strip()]
@@ -123,31 +82,12 @@ _READERS = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Public loader
-# ---------------------------------------------------------------------------
-
 def load_documents(
     directory: Union[str, Path],
     chunk_size: int = 400,
     chunk_overlap: int = 50,
 ) -> List[Dict]:
-    """
-    Load and chunk all supported documents in a directory.
-
-    Supported file types: .txt, .md, .pdf, .docx
-
-    Parameters
-    ----------
-    directory    : path to the directory containing strategy documents
-    chunk_size   : target chunk length in words
-    chunk_overlap: word overlap between consecutive chunks
-
-    Returns
-    -------
-    List of chunk dicts (text, id, metadata), sorted by source then index.
-    Raises ValueError if the directory contains no readable files.
-    """
+    """Load and chunk every .txt/.md/.pdf/.docx file in a directory."""
     directory = Path(directory)
     if not directory.exists():
         raise FileNotFoundError(f"Document directory not found: {directory}")
@@ -173,7 +113,6 @@ def load_documents(
             chunk_overlap=chunk_overlap,
             source=path.stem,
         )
-        # Set the real filename in metadata
         for c in chunks:
             c["metadata"]["source_file"] = path.name
 

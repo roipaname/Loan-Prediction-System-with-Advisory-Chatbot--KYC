@@ -1,20 +1,14 @@
 """
-scripts/populate_db.py
-=======================
-One-time population of Postgres with a representative sample of the processed
-dataset, plus a real prediction (LIME attribution included) for every row.
+Populates Postgres with a representative sample of the processed dataset,
+plus a real prediction (LIME attribution included) for every row.
 
-The `loan_applicants` table is gaining a new `display_code` column, so this
-resets the schema first — the only rows lost are the 8 dummy rows from
-database/operations.py's __main__ seed block, not real data.
+WARNING: this drops and recreates every table first (reset_schema), so it
+wipes whatever's currently in the DB, not just leftover seed rows.
 
-The source CSV has no `loan_grade` column (feature_eng.py doesn't produce
-one), so a synthetic A-G grade is assigned from loan_int_rate quantiles
-(A = lowest rate/lowest risk ... G = highest), computed over the full
-45k-row dataset before sampling.
+The source CSV has no loan_grade column, so one is synthesized from
+loan_int_rate quantiles (A = lowest rate ... G = highest) over the full
+dataset before sampling.
 
-Usage:
-    .venv/bin/python -m scripts.populate_db
     .venv/bin/python -m scripts.populate_db --sample-size 2000
 """
 from __future__ import annotations

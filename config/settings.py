@@ -9,9 +9,7 @@ from loguru import logger
 from typing import Dict
 
 load_dotenv()
-#==================================
-# Project root directory and Paths
-#==================================
+# paths
 
 BASE_DIR= Path(__file__).resolve().parent.parent
 DATA_DIR=BASE_DIR / 'data'
@@ -23,28 +21,20 @@ DATABASE_DIR=BASE_DIR /'database'
 SRC_DIR=BASE_DIR /'src'
 AI_ADVISOR_DIR= SRC_DIR/'ai_advisor'
 CLASSIFIER_DIR=SRC_DIR/'classifier'
-TF_IDF_DIR=SRC_DIR/'tf_idf'
 SCRIPTS_DIR=BASE_DIR/'scripts'
 LOGS_DIR=BASE_DIR/'logs'
 for dir in [DATA_DIR,DATA_DIR,RAW_DATA_DIR,PROCESSED_DATA_DIR,MODELS_DIR,DATABASE_DIR,SRC_DIR,AI_ADVISOR_DIR,CLASSIFIER_DIR,TF_IDF_DIR,SCRIPTS_DIR,LOGS_DIR]:
     dir.mkdir(parents=True,exist_ok=True)
 
-# ============================================================================
-# LOGGING CONFIGURATION
-# ============================================================================
-
-# Log level
+# logging
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO').upper()
 
-# Log file paths
 LOG_FILE = LOGS_DIR / 'app.log'
 ERROR_LOG_FILE = LOGS_DIR / 'error.log'
 
-# Log rotation
 LOG_ROTATION = os.getenv('LOG_ROTATION', '10 MB')
 LOG_RETENTION = os.getenv('LOG_RETENTION', '30 days')
 
-# Log format
 LOG_FORMAT = (
     "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
     "<level>{level: <8}</level> | "
@@ -52,10 +42,7 @@ LOG_FORMAT = (
     "<level>{message}</level>"
 )
 
-# ============================================================================
-# DATABASE CONFIGURATION
-# ============================================================================
-
+# database
 DB_NAME=os.getenv("DB_NAME","customer_loan")
 if not DB_NAME:
     logger.warning("DB_NAME is not set. Using default value 'customer_loan'.")
@@ -73,45 +60,26 @@ DB_ECHO = os.getenv('DB_ECHO', 'False').lower() == 'true'
 APP_ENV="testing"
 DB_URL=os.getenv("DATABASE_URL",f"{DB_TYPE}://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
 
-# ============================================================================
-# CLASSIFIER CONFIGURATION
-# ============================================================================
-
+# classifier
 AVAILABLE_CLASSIFIERS=[ 'logistic_regression','naive_bayes','svm','random_forest','gradient_boosting','xgboost','lightgbm','catboost']
 
-# Model versioning
 MODEL_VERSION = os.getenv('MODEL_VERSION', 'v1.0.0')
-
-# Default classifier
 DEFAULT_CLASSIFIER = os.getenv('DEFAULT_CLASSIFIERS', 'random_forest')
 
-# Training parameters
 TEST_SIZE = float(os.getenv('TEST_SIZE', '0.2'))
 RANDOM_STATE = int(os.getenv('RANDOM_STATE', '42'))
 CV_FOLDS = int(os.getenv('CV_FOLDS', '5'))
-# Minimum confidence threshold for classification
 MIN_CONFIDENCE_THRESHOLD = float(os.getenv('MIN_CONFIDENCE_THRESHOLD', '0.5'))
 
-# Path to the best model artefact — written by scripts/train_model.py after
-# each training run and read by the app at inference time
+# written by scripts/train_model.py, read by the app at inference time
 BEST_MODEL_PATH = MODELS_DIR / 'best_model.joblib'
 
-# Metric used to crown the best model during training.
-# Any metric returned by src.classifier.evaluate.evaluate_classifier() is valid.
 MODEL_SELECTION_METRIC = os.getenv('MODEL_SELECTION_METRIC', 'roc_auc')
 
-
-# Similarity threshold for near-duplicate detection
 SIMILARITY_THRESHOLD = float(os.getenv('SIMILARITY_THRESHOLD', '0.85'))
-
-# Hash algorithm for content hashing
 HASH_ALGORITHM = os.getenv('HASH_ALGORITHM', 'sha256')
 
-# =========================================================
-# RAG (RETRIEVAL AUGMENTED GENERATION)
-# =========================================================
-
-
+# RAG
 RAG_CONFIG = {
     "enabled": True,
     "embedding_model": "text-embedding-3-large",
@@ -120,18 +88,11 @@ RAG_CONFIG = {
     "chunk_overlap": 64,
     "top_k": 5,
 }
-# =========================================================
-# HUGGING FACE AI ADVISOR
-# =========================================================
 
+# HuggingFace advisor
 HF_TOKEN=os.getenv("HF_API_TOKEN")
 HF_MODEL="mistralai/Mistral-7B-Instruct-v0.2"
 
-
-
-# =========================================================
-# OUTPUT REGULARIZATION
-# =========================================================
 
 OUTPUT_RULES = {
     "allow_probabilities": True,
@@ -144,11 +105,6 @@ OUTPUT_RULES = {
     "explanation_style": "business_friendly",  # technical | exec | business
 }
 
-
-# =========================================================
-# DECISION INTELLIGENCE
-# =========================================================
-
 DECISION_POLICY = {
     "high_risk_threshold": 0.8,
     "medium_risk_threshold": 0.5,
@@ -158,12 +114,6 @@ DECISION_POLICY = {
         "low": "monitor_only"
     }
 }
-
-
-
-# =========================================================
-# API SETTINGS
-# =========================================================
 
 API_CONFIG = {
     "host": "0.0.0.0",

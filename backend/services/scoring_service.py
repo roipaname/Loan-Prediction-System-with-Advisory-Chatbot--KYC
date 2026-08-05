@@ -1,13 +1,6 @@
 """
-backend/services/scoring_service.py
-====================================
-Orchestrates a brand-new loan application end to end:
-raw form fields -> single-row feature engineering -> DB insert
-(LoanApplicant + EngineeredFeatures) -> LoanContextBuilder inference ->
-LIME attribution -> ModelPrediction insert.
-
-This replaces the "Mock scoring" block that used to live directly in
-frontend/pages/1_Customer_Application.py.
+Scores a brand-new loan application end to end: feature engineering, DB
+insert, model inference, LIME attribution, prediction insert.
 """
 from __future__ import annotations
 

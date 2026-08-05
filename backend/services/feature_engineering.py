@@ -1,13 +1,8 @@
 """
-backend/services/feature_engineering.py
-========================================
-Single-row equivalent of database/feature_eng.py's per-column steps, used to
-score a brand-new application submitted through the frontend. Reuses the same
-constants (INTENT_RISK_MAP, HOMEOWNERSHIP_SCORE_MAP, CREDIT_SCORE_TIERS, ...)
-and the same _score_to_tier() helper as the batch pipeline so a walk-in
-applicant is engineered identically to a bulk-loaded one, except for the two
-dataset-relative signals (credit_risk_interaction, is_high_risk) which use
-the precomputed ReferenceStats instead of a live median/quantile.
+Single-row version of database/feature_eng.py, for scoring a new application
+from the frontend. Same constants/helpers as the batch pipeline, except
+credit_risk_interaction and is_high_risk use precomputed ReferenceStats
+instead of a live median/quantile (can't recompute those on one row).
 """
 from __future__ import annotations
 
@@ -40,14 +35,7 @@ def _income_bucket(income: float) -> str:
 
 
 def engineer_row(raw: Dict[str, Any], ref_stats: ReferenceStats | None = None) -> Dict[str, Any]:
-    """
-    Compute every EngineeredFeatures column for one raw applicant dict.
-
-    `raw` must contain: person_age, person_income, person_emp_exp,
-    person_home_ownership, loan_amnt, loan_intent, loan_int_rate,
-    loan_percent_income, cb_person_cred_hist_length, credit_score,
-    previous_loan_defaults_on_file.
-    """
+    """Compute every EngineeredFeatures column for one raw applicant dict."""
     ref_stats = ref_stats or get_reference_stats()
 
     age            = float(raw["person_age"])

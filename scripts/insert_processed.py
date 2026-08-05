@@ -1,23 +1,9 @@
 """
-database/insert_processed.py
-=============================
-Reads data/processed/loan_features.csv and bulk-inserts every row into:
-  - loan_applicants      (LoanApplicant)
-  - engineered_features  (EngineeredFeatures)
+Reads data/processed/loan_features.csv and bulk-inserts every row into
+loan_applicants + engineered_features. Chunked (default 500 rows), and
+idempotent — skips rows whose (income, loan_amnt, credit_score,
+loan_percent_income) fingerprint already exists.
 
-Features
---------
-- Chunk-based inserts (default 500 rows) to avoid memory/transaction bloat
-- Idempotent: skips rows whose (person_income, loan_amnt, credit_score,
-  loan_percent_income) fingerprint already exists in loan_applicants
-- Full enum coercion matching database/schemas.py exactly
-- Progress logging via loguru
-- CLI flags: --input, --chunk-size, --source-split, --dry-run
-
-Usage
------
-    uv run python -m database.insert_processed
-    uv run python -m database.insert_processed --input data/processed/loan_features.csv
     uv run python -m database.insert_processed --dry-run
     uv run python -m database.insert_processed --chunk-size 1000 --source-split train
 """
@@ -47,16 +33,12 @@ from database.schemas import (
     PersonEducationEnum,
 )
 from config.settings import PROCESSED_DATA_DIR
-# ---------------------------------------------------------------------------
-# Defaults
-# ---------------------------------------------------------------------------
+# defaults
 
 DEFAULT_INPUT      = PROCESSED_DATA_DIR/"loan_features.csv"
 DEFAULT_CHUNK_SIZE = 500
 
-# ---------------------------------------------------------------------------
-# Enum coercion maps  (CSV value → SQLAlchemy enum member)
-# ---------------------------------------------------------------------------
+# enum coercion maps  (csv value → sqlalchemy enum member)
 
 GENDER_MAP: dict[str, GenderEnum] = {
     "male":   GenderEnum.male,
@@ -111,11 +93,7 @@ INCOME_BUCKET_MAP: dict[str, IncomeBucketEnum] = {
     "high":    IncomeBucketEnum.HIGH,
 }
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
+# helpers
 
 def _dec(val, precision: int = 6) -> Optional[Decimal]:
     
@@ -207,9 +185,7 @@ def _coerce_features(row: pd.Series, applicant_id) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# Duplicate fingerprint check
-# ---------------------------------------------------------------------------
+# duplicate fingerprint check
 
 def _build_existing_fingerprints(db) -> set[tuple]:
     """
@@ -238,9 +214,7 @@ def _fingerprint(row: pd.Series) -> tuple:
     )
 
 
-# ---------------------------------------------------------------------------
-# Core insert logic
-# ---------------------------------------------------------------------------
+# core insert logic
 
 def insert_chunk(
     db,
@@ -279,9 +253,7 @@ def insert_chunk(
     return inserted, skipped
 
 
-# ---------------------------------------------------------------------------
-# Main pipeline
-# ---------------------------------------------------------------------------
+# main pipeline
 
 def run_insert(
     input_path:   str | Path  = DEFAULT_INPUT,
@@ -333,9 +305,7 @@ def run_insert(
     logger.success("=" * 55)
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+# cli
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

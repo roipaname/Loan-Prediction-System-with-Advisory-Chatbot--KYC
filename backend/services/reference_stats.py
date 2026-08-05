@@ -1,11 +1,7 @@
 """
-backend/services/reference_stats.py
-====================================
-database/feature_eng.py computes two engineered columns from dataset-wide
-statistics (credit_risk_interaction from medians, is_high_risk from a 75th
-percentile). Those statistics can't be recomputed on a single new-application
-row, so we compute them once from the processed training data and reuse them
-for every single-row scoring request.
+credit_risk_interaction and is_high_risk depend on dataset-wide medians/
+quantiles that can't be recomputed on a single row, so we compute them once
+here and reuse them for every scoring request.
 """
 from __future__ import annotations
 

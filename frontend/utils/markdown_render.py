@@ -1,15 +1,8 @@
 """
-utils/markdown_render.py
-=========================
-Renders the AI advisory report (real Markdown: headers, bold, tables,
-blockquotes — see src/ai_advisor/advisor.py) to styled HTML for display
-inside the themed `.explanation-box` div.
-
-Wrapping raw Markdown text directly inside a `<div>` (as CommonMark treats
-that as an opaque HTML block) suppresses Streamlit's Markdown parsing, so
-headers/bold/tables show up as literal `#`/`**`/`|` characters. Converting
-to HTML explicitly avoids that and lets `.explanation-box`'s CSS style the
-result consistently with the rest of the app.
+Renders the AI advisory report's Markdown to HTML for the `.explanation-box`
+div. Dropping raw Markdown straight into a <div> doesn't work — CommonMark
+treats that as an opaque HTML block and stops parsing inside it, so
+headers/bold/tables show up as literal #/**/| characters instead.
 """
 import markdown as _markdown
 

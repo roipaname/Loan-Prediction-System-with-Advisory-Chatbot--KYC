@@ -1,20 +1,11 @@
 """
-scripts/generate_paper_figures.py
-==================================
-Regenerates the seven figures referenced in the LAPAS research paper
-(Fig1_Architecture through Fig7_Overlap) in figs/, using only the warm,
-neutral, non-blue palette defined in RESEARCH_PAPER_BRIEF.md Section 7.
-Each figure is written twice: a vector .pdf (for LaTeX/print) and a
-300 dpi .png (for copy-paste into Word/Google Docs).
+Regenerates the seven figures referenced in the LAPAS research paper into
+figs/, using the warm/neutral palette from RESEARCH_PAPER_BRIEF.md Section 7.
+Each figure is written as both a vector .pdf and a 300dpi .png.
 
-Source data:
-  models/model_comparison.csv        -> Fig 3, Fig 4
-  reports/tfidf_chroma_metrics.csv   -> Fig 5, Fig 6, Fig 7
-  (Fig 1, Fig 2 are architecture/flow diagrams, drawn from the documented
-  system design in CLAUDE.md and RESEARCH_PAPER_BRIEF.md, no CSV source)
+Fig 1-2 are architecture/flow diagrams (no CSV source). Fig 3-4 come from
+models/model_comparison.csv, Fig 5-7 from reports/tfidf_chroma_metrics.csv.
 
-Usage
------
     .venv/bin/python -m scripts.generate_paper_figures
 """
 from __future__ import annotations
@@ -31,9 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 FIGS_DIR = BASE_DIR / "figs"
 FIGS_DIR.mkdir(exist_ok=True)
 
-# ---------------------------------------------------------------------------
-# Palette (RESEARCH_PAPER_BRIEF.md Section 7 - fixed, no blue)
-# ---------------------------------------------------------------------------
+# palette (research_paper_brief.md section 7 - fixed, no blue)
 INK = "#2B2825"          # warm charcoal - primary text / strongest series
 INK_SOFT = "#6B6259"     # warm grey - secondary ink / muted series
 IVORY = "#FAF7F2"        # warm ivory - background
@@ -82,9 +71,7 @@ def _clean_axes(ax, top=False, right=False, left=True, bottom=True):
     ax.tick_params(colors=INK_SOFT, length=3)
 
 
-# ===========================================================================
-# Fig 1: System architecture diagram
-# ===========================================================================
+# fig 1: system architecture diagram
 
 def fig1_architecture():
     fig, ax = plt.subplots(figsize=(6.4, 6.8))
@@ -159,9 +146,7 @@ def fig1_architecture():
     _save(fig, "Fig1_Architecture")
 
 
-# ===========================================================================
-# Fig 2: Data flow diagram
-# ===========================================================================
+# fig 2: data flow diagram
 
 def fig2_dataflow():
     fig, ax = plt.subplots(figsize=(6.6, 8.6))
@@ -226,9 +211,7 @@ def fig2_dataflow():
     _save(fig, "Fig2_DataFlow")
 
 
-# ===========================================================================
-# Fig 3: Classifier comparison grouped bar chart
-# ===========================================================================
+# fig 3: classifier comparison grouped bar chart
 
 def fig3_classifier_bars():
     df = pd.read_csv(BASE_DIR / "models" / "model_comparison.csv")
@@ -277,9 +260,7 @@ def fig3_classifier_bars():
     _save(fig, "Fig3_ClassifierBars")
 
 
-# ===========================================================================
-# Fig 4: Composite rank vs ROC-AUC rank slope chart
-# ===========================================================================
+# fig 4: composite rank vs roc-auc rank slope chart
 
 def fig4_rank_comparison():
     df = pd.read_csv(BASE_DIR / "models" / "model_comparison.csv")
@@ -320,9 +301,7 @@ def fig4_rank_comparison():
     _save(fig, "Fig4_RankComparison")
 
 
-# ===========================================================================
-# Fig 5: Retrieval latency comparison (log scale)
-# ===========================================================================
+# fig 5: retrieval latency comparison (log scale)
 
 def fig5_latency():
     df = pd.read_csv(BASE_DIR / "reports" / "tfidf_chroma_metrics.csv")
@@ -358,9 +337,7 @@ def fig5_latency():
     _save(fig, "Fig5_Latency")
 
 
-# ===========================================================================
-# Fig 6: Retrieval similarity score comparison (top-1 and mean)
-# ===========================================================================
+# fig 6: retrieval similarity score comparison (top-1 and mean)
 
 def fig6_similarity():
     df = pd.read_csv(BASE_DIR / "reports" / "tfidf_chroma_metrics.csv")
@@ -395,9 +372,7 @@ def fig6_similarity():
     _save(fig, "Fig6_Similarity", bbox_inches="tight")
 
 
-# ===========================================================================
-# Fig 7: Jaccard overlap + Spearman rank correlation
-# ===========================================================================
+# fig 7: jaccard overlap + spearman rank correlation
 
 def fig7_overlap():
     df = pd.read_csv(BASE_DIR / "reports" / "tfidf_chroma_metrics.csv")

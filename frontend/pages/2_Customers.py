@@ -22,7 +22,7 @@ df, using_mock = api_client.get_applicants_safe()
 if using_mock:
     st.warning("Backend unavailable — showing sample data.")
 
-# ── Sidebar Filters ───────────────────────────────────────────────────────────
+# sidebar filters
 st.sidebar.markdown(f'<div class="section-header" style="font-size:0.78rem;">{_icon("funnel",13,GOLD_LT)} Filters</div>',
                     unsafe_allow_html=True)
 
@@ -55,7 +55,7 @@ st.sidebar.markdown("<br>", unsafe_allow_html=True)
 if st.sidebar.button("Reset Filters", use_container_width=True):
     st.rerun()
 
-# ── Apply filters ─────────────────────────────────────────────────────────────
+# apply filters
 fdf = df.copy()
 if search:
     fdf = fdf[fdf['id'].str.contains(search, case=False, na=False)]
@@ -80,7 +80,7 @@ sort_map = {
 scol, sasc = sort_map[sort_by]
 fdf = fdf.sort_values(scol, ascending=sasc)
 
-# ── Page header ───────────────────────────────────────────────────────────────
+# page header
 approved_n  = (fdf['predicted_outcome'] == 'approved').sum()
 rejected_n  = (fdf['predicted_outcome'] == 'rejected').sum()
 
@@ -100,7 +100,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Cards grid ────────────────────────────────────────────────────────────────
+# cards grid
 if fdf.empty:
     st.markdown(f"""
     <div style="text-align:center; padding:3rem; color:{TEXT3};">
@@ -124,7 +124,7 @@ page_df = fdf.iloc[
     (st.session_state['cust_page'] + 1) * PAGE_SIZE
 ]
 
-# ── Render cards in 3 columns ─────────────────────────────────────────────────
+# render cards in 3 columns
 def _score_bar(score, max=850):
     pct = int(score / max * 100)
     colour = SUCCESS if score >= 670 else (GOLD if score >= 580 else DANGER)
@@ -201,7 +201,7 @@ for i in range(0, len(rows_iter), n_cols):
                         st.session_state['selected_customer'] = row['id']
                         st.switch_page("pages/4_AI_Advisory.py")
 
-# ── Pagination ────────────────────────────────────────────────────────────────
+# pagination
 if total_pages > 1:
     st.markdown("<br>", unsafe_allow_html=True)
     p_cols = st.columns([1, 2, 1])

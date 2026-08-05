@@ -28,7 +28,7 @@ df, using_mock = api_client.get_applicants_safe()
 if using_mock:
     st.warning("Backend unavailable — showing sample data.")
 
-# ── Pre-compute ────────────────────────────────────────────────────────────────
+# pre-compute
 total           = len(df)
 approved        = (df['predicted_outcome'] == 'approved').sum()
 rejected        = total - approved
@@ -54,7 +54,7 @@ monthly['apr_rate'] = monthly['approved'] / monthly['applications'] * 100
 
 COLORS_OUTCOME = {'approved': SUCCESS, 'rejected': DANGER}
 
-# ── Error helper ───────────────────────────────────────────────────────────────
+# error helper
 def _err(tab_name: str, exc: Exception):
     st.markdown(
         f'<div style="background:rgba(190,60,50,0.10);border:1px solid rgba(190,60,50,0.30);'
@@ -66,7 +66,7 @@ def _err(tab_name: str, exc: Exception):
         unsafe_allow_html=True,
     )
 
-# ── Page header ────────────────────────────────────────────────────────────────
+# page header
 st.markdown(f"""
 <div style="margin-bottom:1.2rem;display:flex;align-items:center;gap:0.7rem;">
   {_icon('chart-bar-square',26,GOLD)}
@@ -75,7 +75,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Top KPI strip – row 1 ──────────────────────────────────────────────────────
+# top kpi strip – row 1
 k1,k2,k3,k4,k5,k6 = st.columns(6)
 k1.metric("Total Applications",  f"{total:,}")
 k2.metric("Approval Rate",       f"{apr_pct:.1f}%",   delta="+2.3%")
@@ -84,7 +84,7 @@ k4.metric("Avg Loan Amount",     f"R{avg_loan:,.0f}")
 k5.metric("Avg Interest Rate",   f"{avg_rate:.1f}%")
 k6.metric("High Risk Cases",     f"{high_risk}",      delta="-3", delta_color="inverse")
 
-# ── Top KPI strip – row 2 ──────────────────────────────────────────────────────
+# top kpi strip – row 2
 k7,k8,k9,k10,k11,k12 = st.columns(6)
 k7.metric("Total Portfolio",        f"R{total_portfolio/1_000_000:.1f}M")
 k8.metric("Rejection Rate",         f"{rej_pct:.1f}%",      delta="-2.3%", delta_color="inverse")
@@ -95,7 +95,7 @@ k12.metric("Avg Employment Yrs",    f"{avg_emp_yrs:.1f} yrs")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ── Tabs ───────────────────────────────────────────────────────────────────────
+# tabs
 tab1, tab2, tab3, tab4 = st.tabs([
     "Overview & Approval",
     "Demographics",
@@ -103,9 +103,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "Model Intelligence",
 ])
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# TAB 1 – Overview & Approval
-# ═══════════════════════════════════════════════════════════════════════════════
+# tab 1 – overview & approval
 with tab1:
     try:
         r1c1, r1c2, r1c3 = st.columns([1, 1.6, 1], gap="small")
@@ -217,9 +215,7 @@ with tab1:
     except Exception as _e:
         _err("Overview & Approval", _e)
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# TAB 2 – Demographics
-# ═══════════════════════════════════════════════════════════════════════════════
+# tab 2 – demographics
 with tab2:
     try:
         d1, d2 = st.columns(2, gap="small")
@@ -315,9 +311,7 @@ with tab2:
     except Exception as _e:
         _err("Demographics", _e)
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# TAB 3 – Financial & Risk
-# ═══════════════════════════════════════════════════════════════════════════════
+# tab 3 – financial & risk
 with tab3:
     try:
         f1, f2 = st.columns(2, gap="small")
@@ -432,9 +426,7 @@ with tab3:
     except Exception as _e:
         _err("Financial & Risk", _e)
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# TAB 4 – Model Intelligence
-# ═══════════════════════════════════════════════════════════════════════════════
+# tab 4 – model intelligence
 with tab4:
     try:
         m1, m2 = st.columns(2, gap="small")

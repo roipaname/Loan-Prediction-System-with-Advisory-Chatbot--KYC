@@ -1,26 +1,19 @@
 """
 backend/deps.py
 ================
-Process-wide singletons: the trained classifier, the RAG context builder, the
-two retrieval stores, and the advisor. All are expensive to construct (model
-load, embedding model load, index load), so each is built once per uvicorn
-worker and reused across requests.
+Process-wide singletons (classifier, context builder, retrieval stores) —
+built once per uvicorn worker and reused across requests.
 
-Import-order constraint (macOS Intel): loading the xgboost-backed
-LoanClassifier via joblib AFTER `torch` has been imported into the process
-segfaults (confirmed: `import torch` then `joblib.load(xgboost_model)` ->
-SIGSEGV during deserialization; the reverse order is safe, and xgboost
-inference keeps working fine even if torch is imported afterwards). `torch`
-is a transitive import of `src.ai_advisor.vector_store.VectorStore`
-(sentence-transformers), so that import is kept lazy here, and
-backend/main.py warms up the classifier at startup — before any request can
-possibly trigger the vector-store import — to guarantee the safe order.
+Import order matters on macOS Intel: torch (pulled in by VectorStore) must
+not be imported before the xgboost classifier is joblib.load()'d, or it
+segfaults. Vector store import stays lazy, and get_classifier() has to run
+first — backend/main.py does that at startup.
 """
 from __future__ import annotations
 
 from functools import lru_cache
 
-from config.settings import DATA_DIR
+from config.settings import DATA_DIR, TF_IDF_DIR
 from src.ai_advisor.loan_context_builder import LoanContextBuilder
 from src.classifier.classifier import LoanClassifier
 from src.tf_idf.tf_idf_store import TFIDFStore
@@ -40,14 +33,18 @@ def get_classifier() -> LoanClassifier:
 
 @lru_cache(maxsize=1)
 def get_tfidf_store() -> TFIDFStore:
-    return TFIDFStore.from_directory(_STRATEGY_DOCS_DIR)
+    # reuse persisted index if present; rm -rf TF_IDF_DIR to force a reindex
+    try:
+        return TFIDFStore.load(TF_IDF_DIR)
+    except FileNotFoundError:
+        store = TFIDFStore.from_directory(_STRATEGY_DOCS_DIR)
+        store.persist(TF_IDF_DIR)
+        return store
 
 
 @lru_cache(maxsize=1)
 def get_vector_store():
-    # Lazy import: pulls in torch/sentence-transformers. Must never run
-    # before get_classifier() has already loaded the xgboost model once —
-    # see module docstring.
+    # lazy import (pulls in torch) — must run after get_classifier(), see above
     from src.ai_advisor.vector_store import VectorStore
     return VectorStore.from_directory(_STRATEGY_DOCS_DIR, force_reindex=False)
 

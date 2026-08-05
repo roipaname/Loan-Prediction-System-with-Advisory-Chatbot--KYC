@@ -17,8 +17,7 @@ app = FastAPI(title="LAPAS API", version="1.0.0")
 
 @app.on_event("startup")
 def _warm_up_classifier() -> None:
-    # Load the xgboost-backed classifier before any request can trigger the
-    # vector-store import (which pulls in torch) — see backend/deps.py.
+    # load classifier before anything can trigger the torch import, see deps.py
     get_classifier()
 
 app.add_middleware(

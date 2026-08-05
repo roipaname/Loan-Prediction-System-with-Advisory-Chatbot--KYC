@@ -1,21 +1,11 @@
 """
-feature_eng.py
-==============
-Feature engineering pipeline for the Loan Prediction System.
+Feature engineering pipeline.
 
-Reads  : data/raw/loan_data.csv  (or any path passed via CLI / import)
-Writes : data/processed/loan_features.csv
+Reads data/raw/loan_data.csv, writes data/processed/loan_features.csv.
+Derived columns align 1-to-1 with the EngineeredFeatures ORM schema so
+downstream DB-insert code can map directly.
 
-All derived columns align 1-to-1 with the EngineeredFeatures ORM schema
-(database/schemas.py).  Column names, enum values, and flag semantics
-are reproduced exactly so downstream DB-insert code can map directly.
-
-Usage
------
-    python feature_eng.py                                  # default paths
-    python feature_eng.py --input  path/to/raw.csv
-                          --output path/to/processed.csv
-                          --version 1.0.0
+    python feature_eng.py --input path/to/raw.csv --output path/to/out.csv
 """
 
 from __future__ import annotations
@@ -28,9 +18,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from config.settings import PROCESSED_DATA_DIR,RAW_DATA_DIR
-# ---------------------------------------------------------------------------
-# Logging
-# ---------------------------------------------------------------------------
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -38,30 +26,18 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Constants — kept in one place so they're easy to tune
-# ---------------------------------------------------------------------------
-
 PIPELINE_VERSION = "1.0.0"
 
-# Source dataset (Kaggle "Loan Approval Classification Data") is denominated
-# in USD. Values are not FX-converted (a flat USD->ZAR exchange-rate multiply
-# would not produce a realistic South African income/loan distribution, and
-# would still leave the model implicitly trained on a US income shape);
-# instead person_income and loan_amnt are linearly rescaled so the dataset's
-# original median annual income ($67,048) maps to a representative South
-# African median formal-sector annual income of R200,000. The same factor is
-# applied to both columns so the loan-to-income ratio structure the model
-# learns from (loan_percent_income, affordability_ratio, etc.) is unchanged
-# by the rescale — see rescale_to_zar() below.
+# source dataset is USD; rescale person_income/loan_amnt so the median
+# ($67,048) lands on a realistic SA formal-sector income (R200,000). Same
+# factor on both columns keeps the loan-to-income ratio structure unchanged.
 ZAR_INCOME_LOAN_SCALE = 200_000 / 67_048  # ~= 2.9829
 
-# Income bucket thresholds (dataset quartiles, rescaled to ZAR)
+# income bucket thresholds (dataset quartiles, rescaled to ZAR)
 INCOME_LOW_MAX        = round(47_204 * ZAR_INCOME_LOAN_SCALE)
 INCOME_LOW_MED_MAX    = round(67_048 * ZAR_INCOME_LOAN_SCALE)
 INCOME_MED_MAX        = round(95_789 * ZAR_INCOME_LOAN_SCALE)
 
-# Credit score tier bands (standard US definitions)
 CREDIT_SCORE_TIERS = [
     (800, 850, "Exceptional"),
     (740, 799, "Very Good"),
@@ -70,7 +46,7 @@ CREDIT_SCORE_TIERS = [
     (300, 579, "Poor"),
 ]
 
-# Loan-intent risk scores (0 = lowest risk, 5 = highest)
+# loan-intent risk scores (0 = lowest risk, 5 = highest)
 INTENT_RISK_MAP = {
     "EDUCATION":         0,
     "HOMEIMPROVEMENT":   1,
@@ -111,10 +87,6 @@ RISK_WEIGHTS = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Step 1 — Load & validate raw data
-# ---------------------------------------------------------------------------
-
 def load_raw(path: str | Path=RAW_DATA_DIR/'loan_data.csv') -> pd.DataFrame:
     """Load the raw CSV and do light validation."""
     path = Path(path)
@@ -139,10 +111,6 @@ def load_raw(path: str | Path=RAW_DATA_DIR/'loan_data.csv') -> pd.DataFrame:
     return df
 
 
-# ---------------------------------------------------------------------------
-# Step 2 — Clean & normalise raw columns
-# ---------------------------------------------------------------------------
-
 def clean_raw(df: pd.DataFrame) -> pd.DataFrame:
     """
     Normalise string enums so they match SQLAlchemy enum values exactly,
@@ -151,7 +119,6 @@ def clean_raw(df: pd.DataFrame) -> pd.DataFrame:
     log.info("Cleaning raw columns …")
     df = df.copy()
 
-    # --- Boolean conversions ---
     df["previous_loan_defaults_on_file"] = (
         df["previous_loan_defaults_on_file"]
         .str.strip()
@@ -159,7 +126,6 @@ def clean_raw(df: pd.DataFrame) -> pd.DataFrame:
         .astype(bool)
     )
 
-    # --- String normalisations ---
     df["person_education"] = (
         df["person_education"].str.strip().replace(EDUCATION_NORM_MAP)
     )
@@ -169,7 +135,6 @@ def clean_raw(df: pd.DataFrame) -> pd.DataFrame:
     df["person_home_ownership"] = df["person_home_ownership"].str.strip().str.upper()
     df["person_gender"]         = df["person_gender"].str.strip().str.lower()
 
-    # --- Numeric coercions ---
     df["person_age"]                  = pd.to_numeric(df["person_age"],                  errors="coerce")
     df["person_income"]               = pd.to_numeric(df["person_income"],               errors="coerce")
     df["loan_amnt"]                   = pd.to_numeric(df["loan_amnt"],                   errors="coerce")
@@ -179,7 +144,7 @@ def clean_raw(df: pd.DataFrame) -> pd.DataFrame:
     df["credit_score"]                = pd.to_numeric(df["credit_score"],                errors="coerce")
     df["person_emp_exp"]              = pd.to_numeric(df["person_emp_exp"],              errors="coerce")
 
-    # --- Cap implausible ages (max >100 are outliers) ---
+    # cap implausible ages
     outlier_ages = df["person_age"] > 100
     if outlier_ages.sum():
         log.warning("Capping %d age outliers (>100) to 100", outlier_ages.sum())
@@ -188,18 +153,10 @@ def clean_raw(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# ---------------------------------------------------------------------------
-# Step 2b — Rescale USD source values to a ZAR-realistic range
-# ---------------------------------------------------------------------------
-
 def rescale_to_zar(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Rescale the USD-denominated person_income and loan_amnt columns to a
-    South African-realistic range (see ZAR_INCOME_LOAN_SCALE above). Must run
-    after clean_raw() (numeric coercion) and before any derived feature that
-    reads person_income / loan_amnt, so every downstream ratio is computed
-    from the rescaled figures.
-    """
+    """Rescale USD person_income/loan_amnt to ZAR (see ZAR_INCOME_LOAN_SCALE).
+    Must run after clean_raw() and before anything that derives from these
+    columns."""
     log.info(
         "Rescaling person_income and loan_amnt to ZAR (factor=%.4f, "
         "source median $67,048 -> target median R200,000) …",
@@ -211,10 +168,6 @@ def rescale_to_zar(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# ---------------------------------------------------------------------------
-# Step 3 — Financial ratio features
-# ---------------------------------------------------------------------------
-
 def add_financial_ratios(df: pd.DataFrame) -> pd.DataFrame:
     """
     debt_to_income_ratio, loan_to_income_ratio, credit_history_to_age_ratio,
@@ -223,20 +176,17 @@ def add_financial_ratios(df: pd.DataFrame) -> pd.DataFrame:
     log.info("Computing financial ratio features …")
     df = df.copy()
 
-    # Monthly income helper (used in multiple features)
     df["monthly_income"] = df["person_income"] / 12.0
 
-    # DTI / LTI — loan_percent_income is pre-computed in source data
-    # We store it under both names for schema completeness
+    # loan_percent_income is pre-computed in source data; store under both names
     df["debt_to_income_ratio"] = df["loan_percent_income"]
     df["loan_to_income_ratio"] = df["loan_percent_income"]
 
-    # Monthly loan burden (approximate: annualise with simple interest)
     df["monthly_loan_burden"] = (
         df["loan_amnt"] * (1 + df["loan_int_rate"] / 100) / 12.0
     )
 
-    # Affordability ratio — fraction of monthly income NOT consumed by loan
+    # fraction of monthly income not consumed by the loan
     df["affordability_ratio"] = np.where(
         df["monthly_income"] > 0,
         1.0 - (df["monthly_loan_burden"] / df["monthly_income"]),
@@ -244,7 +194,6 @@ def add_financial_ratios(df: pd.DataFrame) -> pd.DataFrame:
     )
     df["affordability_ratio"] = df["affordability_ratio"].clip(lower=0.0)
 
-    # Credit history relative to age
     df["credit_history_to_age_ratio"] = np.where(
         df["person_age"] > 0,
         df["cb_person_cred_hist_length"] / df["person_age"],
@@ -253,10 +202,6 @@ def add_financial_ratios(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-
-# ---------------------------------------------------------------------------
-# Step 4 — Age & employment features
-# ---------------------------------------------------------------------------
 
 def add_age_employment_features(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -277,17 +222,12 @@ def add_age_employment_features(df: pd.DataFrame) -> pd.DataFrame:
         np.nan,
     )
 
-    # Risky demographic: very young with zero work history
     df["young_inexperienced"] = (
         (df["person_age"] < 25) & (df["person_emp_exp"] == 0)
     ).astype(bool)
 
     return df
 
-
-# ---------------------------------------------------------------------------
-# Step 5 — Credit quality features
-# ---------------------------------------------------------------------------
 
 def _score_to_tier(score: float) -> str:
     for lo, hi, label in CREDIT_SCORE_TIERS:
@@ -306,17 +246,15 @@ def add_credit_features(df: pd.DataFrame) -> pd.DataFrame:
 
     df["credit_score_tier"] = df["credit_score"].apply(_score_to_tier)
 
-    # Thin file: fewer than 2 years of credit history
     df["thin_credit_file"] = (df["cb_person_cred_hist_length"] < 2).astype(bool)
 
-    # Score density over credit history
     df["score_per_history_year"] = np.where(
         df["cb_person_cred_hist_length"] > 0,
         df["credit_score"] / df["cb_person_cred_hist_length"],
         np.nan,
     )
 
-    # High-rate loan with low credit score — dangerous combination
+    # high rate + low score is a dangerous combination
     median_rate  = df["loan_int_rate"].median()
     median_score = df["credit_score"].median()
     df["credit_risk_interaction"] = (
@@ -325,10 +263,6 @@ def add_credit_features(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-
-# ---------------------------------------------------------------------------
-# Step 6 — Income & loan burden features
-# ---------------------------------------------------------------------------
 
 def add_income_burden_features(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -349,15 +283,10 @@ def add_income_burden_features(df: pd.DataFrame) -> pd.DataFrame:
 
     df["income_bucket"] = df["person_income"].apply(_income_bucket)
 
-    # Loan consumes more than 30 % of gross income
     df["high_loan_burden_flag"] = (df["loan_percent_income"] > 0.30).astype(bool)
 
     return df
 
-
-# ---------------------------------------------------------------------------
-# Step 7 — Employment stability
-# ---------------------------------------------------------------------------
 
 def add_employment_stability(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -372,10 +301,6 @@ def add_employment_stability(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# ---------------------------------------------------------------------------
-# Step 8 — Risk flags & composite score
-# ---------------------------------------------------------------------------
-
 def add_risk_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     is_high_risk, composite_risk_score
@@ -383,7 +308,7 @@ def add_risk_features(df: pd.DataFrame) -> pd.DataFrame:
     log.info("Computing risk flags & composite score …")
     df = df.copy()
 
-    # Individual binary risk signals normalised to [0, 1]
+    # binary risk signals, normalised to [0, 1]
     signals = pd.DataFrame(index=df.index)
     signals["debt_to_income_ratio"]    = (df["debt_to_income_ratio"] > 0.40).astype(float)
     signals["loan_to_income_ratio"]    = (df["loan_to_income_ratio"] > 0.40).astype(float)
@@ -398,16 +323,12 @@ def add_risk_features(df: pd.DataFrame) -> pd.DataFrame:
         for col, weight in RISK_WEIGHTS.items()
     ).round(6)
 
-    # Flag applicants above the 75th-percentile risk score
+    # flag applicants above the 75th-percentile risk score
     threshold = df["composite_risk_score"].quantile(0.75)
     df["is_high_risk"] = (df["composite_risk_score"] >= threshold).astype(bool)
 
     return df
 
-
-# ---------------------------------------------------------------------------
-# Step 9 — Homeownership & stability–income interaction
-# ---------------------------------------------------------------------------
 
 def add_homeownership_features(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -424,17 +345,13 @@ def add_homeownership_features(df: pd.DataFrame) -> pd.DataFrame:
         .astype(int)
     )
 
-    # Stability proxy × normalised income (log-scaled to reduce skew)
+    # log-scaled to reduce skew
     df["stability_income_interaction"] = (
         df["homeownership_score"] * np.log1p(df["person_income"])
     ).round(6)
 
     return df
 
-
-# ---------------------------------------------------------------------------
-# Step 10 — Loan intent risk score
-# ---------------------------------------------------------------------------
 
 def add_intent_risk(df: pd.DataFrame) -> pd.DataFrame:
     """intent_risk_score (0 = safest, 5 = riskiest)"""
@@ -451,22 +368,14 @@ def add_intent_risk(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# ---------------------------------------------------------------------------
-# Step 11 — Metadata
-# ---------------------------------------------------------------------------
-
 def add_metadata(df: pd.DataFrame, version: str) -> pd.DataFrame:
     df = df.copy()
     df["pipeline_version"] = version
     return df
 
 
-# ---------------------------------------------------------------------------
-# Master pipeline
-# ---------------------------------------------------------------------------
-
 ENGINEERED_FEATURE_COLS = [
-    # passthrough raw cols (for join key and labels)
+    # passthrough raw cols
     "person_age", "person_gender", "person_education",
     "person_income", "person_emp_exp", "person_home_ownership",
     "loan_amnt", "loan_intent", "loan_int_rate",
@@ -502,23 +411,9 @@ def run_pipeline(
     output_path: str | Path = PROCESSED_DATA_DIR /"loan_features.csv",
     version:     str        = PIPELINE_VERSION,
 ) -> pd.DataFrame:
-    """
-    Execute the full feature engineering pipeline.
-
-    Parameters
-    ----------
-    input_path  : path to the raw CSV
-    output_path : where to write the enriched CSV
-    version     : pipeline version tag embedded in every row
-
-    Returns
-    -------
-    pd.DataFrame with all engineered columns
-    """
-    # --- Load ---
+    """Run the full feature engineering pipeline, return the engineered DataFrame."""
     df = load_raw(input_path)
 
-    # --- Transform ---
     df = clean_raw(df)
     df = rescale_to_zar(df)
     df = add_financial_ratios(df)
@@ -531,11 +426,9 @@ def run_pipeline(
     df = add_intent_risk(df)
     df = add_metadata(df, version)
 
-    # --- Select & order final columns ---
     final_cols = [c for c in ENGINEERED_FEATURE_COLS if c in df.columns]
     df_out = df[final_cols].copy()
 
-    # --- Save ---
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df_out.to_csv(output_path, index=False)
@@ -544,7 +437,6 @@ def run_pipeline(
         len(df_out), len(df_out.columns), output_path,
     )
 
-    # --- Summary ---
     _print_summary(df_out)
 
     return df_out
@@ -567,10 +459,6 @@ def _print_summary(df: pd.DataFrame) -> None:
     log.info("Employment       :\n%s", df["employment_stability"].value_counts().to_string())
     log.info("=" * 60)
 
-
-# ---------------------------------------------------------------------------
-# CLI entry point
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

@@ -21,9 +21,7 @@ from database.schemas import (
 conn = Connection()
 
 
-# ==============================================================================
-# GENERIC HELPER
-# ==============================================================================
+# generic helpers
 
 def save(instance):
     with conn.get_db() as db:
@@ -52,9 +50,7 @@ def list_all(model, limit: int = 100):
         return objs
 
 
-# ==============================================================================
-# APPLICANT
-# ==============================================================================
+# applicant
 
 def create_applicant(data: Dict[str, Any]) -> LoanApplicant:
     data = dict(data)
@@ -76,11 +72,8 @@ def get_applicant_by_code(display_code: str) -> Optional[LoanApplicant]:
         return obj
 
 
-# ==============================================================================
-# FLAT DATASET FOR THE FRONTEND (applicant + engineered features + latest
-# prediction, joined). ~2,000 rows so a single pandas read is fast; the
-# frontend filters/sorts/paginates client-side exactly as it did on mock data.
-# ==============================================================================
+# flat applicant + features + latest prediction join, for the frontend to
+# filter/sort/paginate client-side
 
 _APPLICANTS_JOIN_SQL = """
     SELECT
@@ -103,12 +96,9 @@ _APPLICANTS_JOIN_SQL = """
 """
 
 
-# SQLAlchemy's Enum() column type stores the Python enum MEMBER NAME in
-# Postgres, not .value — e.g. PersonEducationEnum.master ("Master") is stored
-# as the literal string "master". The ORM translates name -> member -> .value
-# transparently on every read, but raw SQL (used here for speed on a flat,
-# ~2k-row dataset) bypasses that translation and returns the bare names. Only
-# enums whose name differs from its value need remapping.
+# SQLAlchemy's Enum() stores the member NAME in postgres, not .value, and the
+# ORM only translates that back on reads that go through it — raw SQL (below)
+# gets the bare names, so remap them here.
 _ENUM_NAME_TO_VALUE = {
     "person_education":        {m.name: m.value for m in PersonEducationEnum},
     "person_home_ownership":   {m.name: m.value for m in HomeOwnerShipEnum},
@@ -119,11 +109,7 @@ _ENUM_NAME_TO_VALUE = {
 
 
 def get_applicants_flat(limit: int = 5000) -> pd.DataFrame:
-    """
-    Return the full applicant+features+prediction dataset as a flat DataFrame,
-    shaped like the columns frontend/utils/mock_data.get_data() used to
-    produce (id, person_age, ..., predicted_outcome, risk_tier, shap_values).
-    """
+    """Full applicant+features+prediction dataset as a flat DataFrame."""
     df = pd.read_sql(_APPLICANTS_JOIN_SQL, conn.engine)
     if limit:
         df = df.head(limit)
@@ -135,9 +121,7 @@ def get_applicants_flat(limit: int = 5000) -> pd.DataFrame:
     return df
 
 
-# ==============================================================================
-# ENGINEERED FEATURES
-# ==============================================================================
+# engineered features
 
 def create_features(applicant_id: UUID, data: Dict[str, Any]) -> EngineeredFeatures:
     features = EngineeredFeatures(applicant_id=applicant_id, **data)
@@ -153,9 +137,7 @@ def get_features(applicant_id: UUID) -> Optional[EngineeredFeatures]:
         return obj
 
 
-# ==============================================================================
-# MODEL
-# ==============================================================================
+# model
 
 def create_model(data: Dict[str, Any]) -> MLModel:
     model = MLModel(**data)
@@ -175,9 +157,7 @@ def get_champion_model() -> Optional[MLModel]:
         return obj
 
 
-# ==============================================================================
-# PREDICTIONS
-# ==============================================================================
+# predictions
 
 def create_prediction(data: Dict[str, Any]) -> ModelPrediction:
     prediction = ModelPrediction(**data)
@@ -211,9 +191,7 @@ def get_latest_prediction(applicant_id: UUID) -> Optional[ModelPrediction]:
         return obj
 
 
-# ==============================================================================
 # RAG
-# ==============================================================================
 
 def create_rag(data: Dict[str, Any]) -> RAGExplanation:
     rag = RAGExplanation(**data)
@@ -252,9 +230,7 @@ def get_rag(prediction_id: UUID) -> Optional[RAGExplanation]:
         return obj
 
 
-# ==============================================================================
-# SEED / TEST BLOCK
-# ==============================================================================
+# seed / test block
 
 from uuid import uuid4
 from decimal import Decimal
@@ -275,9 +251,7 @@ from database.schemas import (
 
 if __name__ == "__main__":
 
-    # =========================
-    # 1. CREATE APPLICANT
-    # =========================
+    # 1. create applicant
     applicant_data = {
         "person_age": Decimal("28"),
         "person_gender": GenderEnum.male,
@@ -300,9 +274,7 @@ if __name__ == "__main__":
     applicant = create_applicant(applicant_data)
     print("Applicant:", applicant)
 
-    # =========================
-    # 2. CREATE FEATURES
-    # =========================
+    # 2. create features
     features_data = {
         "debt_to_income_ratio": Decimal("0.26"),
         "loan_to_income_ratio": Decimal("0.26"),
@@ -338,9 +310,7 @@ if __name__ == "__main__":
     features = create_features(applicant.id, features_data)
     print("Features:", features)
 
-    # =========================
-    # 3. CREATE MODEL
-    # =========================
+    # 3. create model
     model_data = {
         "algorithm": ModelAlgorithmEnum.logistic_regression,
         "is_from_scratch": True,
@@ -359,9 +329,7 @@ if __name__ == "__main__":
     model = create_model(model_data)
     print("Model:", model)
 
-    # =========================
-    # 4. CREATE PREDICTION
-    # =========================
+    # 4. create prediction
     prediction_data = {
         "applicant_id": applicant.id,
         "model_id": model.id,
@@ -375,9 +343,7 @@ if __name__ == "__main__":
     prediction = create_prediction(prediction_data)
     print("Prediction:", prediction)
 
-    # =========================
-    # 5. CREATE RAG EXPLANATION
-    # =========================
+    # 5. create rag explanation
     rag_data = {
         "prediction_id": prediction.id,
         "retriever_type": RetrieverTypeEnum.tfidf,
@@ -394,9 +360,7 @@ if __name__ == "__main__":
     rag = create_rag(rag_data)
     print("RAG:", rag)
 
-    # =========================
-    # 6. FETCH TESTS
-    # =========================
+    # 6. fetch tests
     print("\n--- FETCH TESTS ---")
 
     print("Get Applicant:", get_applicant(applicant.id))

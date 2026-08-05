@@ -1,41 +1,12 @@
 """
-src/ai_advisor/vector_store.py
-==============================
 Dense embedding vector store backed by ChromaDB and sentence-transformers.
+Same query interface as TFIDFStore so the two are drop-in replacements for
+each other in scripts/tfidf_chroma.py.
 
-Architecture follows the pattern that has been verified to work on macOS Intel
-(x86_64) with Python 3.10:
-
-  - SentenceTransformer encodes each text INDIVIDUALLY (not in batches).
-    Batch encoding crashes on macOS x86_64 due to OMP/libdispatch thread
-    contention inside the Rust tokenizer when batch_size > 1.
-  - Explicit embeddings are passed to ChromaDB's add() and query() so that
-    ChromaDB never calls its own ONNX-based embedding pipeline.
-
-The query interface is identical to TFIDFStore so both stores are
-drop-in replacements in scripts/tfidf_chroma.py.
-
-Persistence
------------
-ChromaDB's PersistentClient writes its own SQLite + HNSW index under
-  <persist_directory>/
-
-Public API
-----------
-  VectorStore(collection_name, persist_directory, embedding_model)
-    .add(documents, metadatas, ids)
-    .query(query_texts, n_results)   -> ChromaDB-compatible dict
-    .count()                         -> int
-    VectorStore.from_directory(docs_dir, **kwargs)  -> VectorStore
-
-Usage
------
-    from src.ai_advisor.vector_store import VectorStore
-
-    vs = VectorStore.from_directory("data/loan_strategy_docs")
-    r  = vs.query(["high debt loan rejection poor credit"], n_results=3)
-    for doc, dist in zip(r["documents"][0], r["distances"][0]):
-        print(f"({1-dist:.4f})  {doc[:120]}...")
+Texts are encoded ONE AT A TIME, not batched — batch encoding crashes on
+macOS Intel due to OMP/libdispatch thread contention in the tokenizer.
+Embeddings are passed explicitly to add()/query() so Chroma never invokes
+its own ONNX embedding pipeline.
 """
 from __future__ import annotations
 
@@ -55,19 +26,8 @@ _DEFAULT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
 
 class VectorStore:
-    """
-    Dense vector store using sentence-transformers + ChromaDB.
-
-    Texts are encoded ONE AT A TIME to avoid the OMP/libdispatch thread
-    contention that causes segfaults on macOS Intel when encoding large
-    batches with sentence-transformers >= 3.x.
-
-    Parameters
-    ----------
-    collection_name   : ChromaDB collection name
-    persist_directory : directory for ChromaDB's SQLite + HNSW index
-    embedding_model   : sentence-transformers model name
-    """
+    """Dense vector store using sentence-transformers + ChromaDB (see module
+    docstring for the one-at-a-time encoding constraint)."""
 
     def __init__(
         self,
@@ -100,17 +60,9 @@ class VectorStore:
             )
             log.info("VectorStore '%s': created new collection.", collection_name)
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
     def _embed(self, text: str) -> List[float]:
         """Encode a single text string to a normalised embedding list."""
         return self._embedder.encode(text, normalize_embeddings=True).tolist()
-
-    # ------------------------------------------------------------------
-    # Ingest
-    # ------------------------------------------------------------------
 
     def add(
         self,
@@ -118,19 +70,8 @@ class VectorStore:
         metadatas: Optional[List[Dict[str, Any]]] = None,
         ids: Optional[List[str]] = None,
     ) -> "VectorStore":
-        """
-        Embed and upsert documents into the collection.
-
-        Uses upsert so the call is idempotent: re-adding an ID overwrites it
-        rather than raising an error.  Each text is encoded individually to
-        avoid batch-threading crashes.
-
-        Parameters
-        ----------
-        documents : raw text strings
-        metadatas : per-document metadata dicts (optional)
-        ids       : unique string IDs (auto-generated UUIDs if omitted)
-        """
+        """Embed and add documents to the collection. Skips IDs already
+        present, so calling this again with the same docs is a no-op."""
         if not documents:
             return self
 
@@ -171,28 +112,13 @@ class VectorStore:
         )
         return self
 
-    # ------------------------------------------------------------------
-    # Query
-    # ------------------------------------------------------------------
-
     def query(
         self,
         query_texts: List[str],
         n_results: int = 5,
     ) -> Dict[str, List[List[Any]]]:
-        """
-        Retrieve the top-n_results most similar documents for each query.
-
-        Parameters
-        ----------
-        query_texts : list of query strings (one result list per query)
-        n_results   : documents to return per query
-
-        Returns
-        -------
-        dict with keys "documents", "metadatas", "distances", "ids"
-        matching the ChromaDB collection.query() output format.
-        """
+        """Top-n_results most similar documents per query, in ChromaDB's
+        collection.query() output format."""
         if self.count() == 0:
             raise RuntimeError(
                 "VectorStore is empty. Call .add() or .from_directory() first."
@@ -207,16 +133,8 @@ class VectorStore:
             include=["documents", "metadatas", "distances"],
         )
 
-    # ------------------------------------------------------------------
-    # Introspection
-    # ------------------------------------------------------------------
-
     def count(self) -> int:
         return self._collection.count()
-
-    # ------------------------------------------------------------------
-    # Factory
-    # ------------------------------------------------------------------
 
     @classmethod
     def from_directory(
@@ -229,22 +147,9 @@ class VectorStore:
         embedding_model: str = _DEFAULT_EMBEDDING_MODEL,
         force_reindex: bool = False,
     ) -> "VectorStore":
-        """
-        Build (or reuse) a VectorStore from all documents in a directory.
-
-        On the first call documents are chunked, embedded, and stored in
-        ChromaDB.  On subsequent calls the saved collection is loaded instantly.
-
-        Parameters
-        ----------
-        docs_dir         : directory with .txt / .md / .pdf / .docx files
-        chunk_size       : target chunk length in words
-        chunk_overlap    : word overlap between consecutive chunks
-        collection_name  : ChromaDB collection name
-        persist_directory: root directory for ChromaDB index
-        embedding_model  : sentence-transformers model name
-        force_reindex    : drop and rebuild even if the collection exists
-        """
+        """Build (or reuse) a VectorStore from all documents in a directory.
+        First call chunks/embeds/stores; later calls just load the saved
+        collection unless force_reindex=True."""
         from src.ai_advisor.document_loader import load_documents
 
         store = cls(
@@ -281,10 +186,6 @@ class VectorStore:
             ids=      [c["id"]       for c in chunks],
         )
         return store
-
-    # ------------------------------------------------------------------
-    # Dunder
-    # ------------------------------------------------------------------
 
     def __len__(self) -> int:
         return self.count()

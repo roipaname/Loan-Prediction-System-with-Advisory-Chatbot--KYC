@@ -19,7 +19,7 @@ st.set_page_config(page_title="LAPAS – Application", page_icon=get_logo_image(
 inject()
 sidebar_logo()
 
-# ── Page header ───────────────────────────────────────────────────────────────
+# page header
 st.markdown(f"""
 <div style="margin-bottom:1.4rem;">
   <div style="display:flex;align-items:center;gap:0.6rem;font-size:1.6rem;font-weight:800;color:{TEXT};">
@@ -29,7 +29,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── If already submitted show full outcome + AI advisory directly ─────────────
+# if already submitted show full outcome + ai advisory directly
 if st.session_state.get("last_submitted_id"):
     sid     = st.session_state["last_submitted_id"]
     outcome = st.session_state.get("last_outcome", "approved")
@@ -49,7 +49,7 @@ if st.session_state.get("last_submitted_id"):
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Outcome + profile card (mirrors AI Advisory page's profile card) ──────
+    # outcome + profile card (mirrors ai advisory page's profile card)
     row = api_client.get_applicant_row(sid)
     _hdr_bg = "linear-gradient(135deg,#1E3228,#162A20)" if approved else "linear-gradient(135deg,#2A1A1C,#221518)"
     _hdr_border = "rgba(92,140,106,0.25)" if approved else "rgba(140,94,98,0.25)"
@@ -96,7 +96,7 @@ if st.session_state.get("last_submitted_id"):
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Top LIME drivers (compact) ─────────────────────────────────────────
+    # top lime drivers (compact)
     if row is not None and row.get('shap_values'):
         from src.ai_advisor.loan_context_builder import _readable_name as _nice_name
         top5 = sorted(row['shap_values'].items(), key=lambda x: abs(x[1]), reverse=True)[:5]
@@ -118,7 +118,7 @@ if st.session_state.get("last_submitted_id"):
             unsafe_allow_html=True,
         )
 
-    # ── AI Advisory report, rendered (not raw markdown) ────────────────────
+    # ai advisory report, rendered (not raw markdown)
     st.markdown(f"""
     <div style="margin:1.2rem 0 0.6rem 0;display:flex;align-items:center;gap:0.5rem;">
       {_icon('cpu-chip',18,GOLD)}
@@ -155,10 +155,10 @@ if st.session_state.get("last_submitted_id"):
             st.rerun()
     st.stop()
 
-# ── Form ──────────────────────────────────────────────────────────────────────
+# form
 with st.form("loan_form", clear_on_submit=False):
 
-    # ── Section 1: Demographics ────────────────────────────────────────────
+    # section 1: demographics
     st.markdown(f'<div class="form-section">{_icon("user",14,GOLD_LT)} Demographic Profile</div>', unsafe_allow_html=True)
     d1, d2, d3 = st.columns(3)
     with d1:
@@ -171,15 +171,14 @@ with st.form("loan_form", clear_on_submit=False):
         education = st.selectbox("Education Level",
             ["High School", "Diploma", "Associate", "Bachelor", "Master", "Doctor"])
 
-    # ── Section 2: Financial Profile ───────────────────────────────────────
+    # section 2: financial profile
     st.markdown(f'<div class="form-section">{_icon("banknotes",14,GOLD_LT)} Financial Profile</div>', unsafe_allow_html=True)
     f1, f2, f3 = st.columns(3)
     with f1:
-        income = st.number_input("Annual Income (R)", min_value=5_000, max_value=1_000_000_000,
+        income = st.number_input("Annual Income (R)", min_value=5_000, max_value=10_000_000,
                                  value=180_000, step=5_000, format="%d",
                                  help="Total gross annual income in ZAR. The model was trained on "
-                                      "real applications with incomes mostly below ~R2.4 million; "
-                                      "predictions for far higher incomes are extrapolated.")
+                                      "real applications with incomes mostly below ~R2.4 million.")
     with f2:
         emp_exp = st.number_input("Employment Experience (years)", min_value=0, max_value=50,
                                   value=5, step=1)
@@ -188,15 +187,15 @@ with st.form("loan_form", clear_on_submit=False):
             ["RENT", "MORTGAGE", "OWN", "OTHER"],
             format_func=lambda x: {"RENT":"Renting","MORTGAGE":"Mortgage","OWN":"Own","OTHER":"Other"}[x])
 
-    # ── Section 3: Loan Details ────────────────────────────────────────────
+    # section 3: loan details
     st.markdown(f'<div class="form-section">{_icon("building-library",14,GOLD_LT)} Loan Details</div>', unsafe_allow_html=True)
     l1, l2, l3 = st.columns(3)
     with l1:
-        loan_amnt = st.number_input("Loan Amount (R)", min_value=500, max_value=1_000_000_000,
+        loan_amnt = st.number_input("Loan Amount (R)", min_value=500, max_value=300_000,
                                     value=25_000, step=1_000, format="%d",
-                                    help="The model was trained on real applications with loan "
-                                         "amounts up to ~R104,000. Requests far beyond that are "
-                                         "extrapolated and predictions may become less reliable.")
+                                    help="Capped at R300,000 (~3x the largest loan amount in the "
+                                         "training data, ~R104,000) to keep predictions within a "
+                                         "range the model can reliably reason about.")
     with l2:
         loan_intent = st.selectbox("Loan Purpose",
             ["PERSONAL","EDUCATION","MEDICAL","VENTURE","HOME_IMPROVEMENT","DEBTCONSOLIDATION"],
@@ -243,8 +242,15 @@ with st.form("loan_form", clear_on_submit=False):
     submitted = st.form_submit_button("Submit Application for Assessment",
                                       use_container_width=False)
 
-# ── Process submission ────────────────────────────────────────────────────────
-if submitted:
+# process submission
+if submitted and loan_pct > 1.0:
+    st.error(
+        f"Loan amount is {loan_pct*100:.0f}% of annual income, which exceeds the maximum "
+        f"supported loan-to-income ratio of 100%. The classifier was not trained on ratios "
+        f"this extreme (training max was 66%) and its predictions there are unreliable. "
+        f"Reduce the loan amount or increase income before resubmitting."
+    )
+elif submitted:
     defaults_bool = prev_defaults == "Yes"
 
     payload = {
@@ -276,7 +282,7 @@ if submitted:
     except api_client.BackendUnavailable as exc:
         st.error(f"Could not reach the scoring backend: {exc}")
 
-# ── Sidebar tip ───────────────────────────────────────────────────────────────
+# sidebar tip
 st.sidebar.markdown(f"""
 <div style="background:rgba(196,168,122,0.07);border:1px solid rgba(196,168,122,0.15);
 border-radius:10px;padding:0.9rem;margin-top:1rem;">
@@ -297,9 +303,9 @@ border-radius:10px;padding:0.9rem;margin-top:0.8rem;">
     {_icon('exclamation-triangle',13,DANGER_LT)} Model Range Note</div>
   <div style="font-size:0.73rem;color:{TEXT2};line-height:1.6;">
     The classifier was trained on real applications with loan amounts up to
-    ~R104,000 and incomes mostly below ~R2.4 million. Values far beyond that
-    range are extrapolated by the model, so predictions there may be unreliable
-    or counter-intuitive even for an otherwise strong applicant profile.
+    ~R104,000 and a loan-to-income ratio never exceeding 0.66. Loan amount is
+    capped at R300,000 and the loan-to-income ratio at 100% of annual income
+    so submissions stay within a range the model can reliably reason about.
   </div>
 </div>
 """, unsafe_allow_html=True)

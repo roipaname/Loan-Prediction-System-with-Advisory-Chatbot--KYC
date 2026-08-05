@@ -1,40 +1,13 @@
 """
-scripts/tfidf_chroma.py
-========================
-Benchmarks the custom TF-IDF vector store against the Dense Embedding vector
-store (sentence-transformers + cosine similarity) on the loan strategy document
-corpus and produces comparison metrics and charts.
+Benchmarks the TF-IDF store against the dense embedding store (all-MiniLM-L6-v2)
+on the loan strategy doc corpus, writes comparison charts + metrics to reports/.
 
-Both stores expose identical ChromaDB-compatible interfaces so swapping them is
-trivial. TF-IDF is sparse and lightning fast; Dense uses all-MiniLM-L6-v2 for
-semantic retrieval at the cost of higher per-query latency.
+No human relevance judgements exist for this corpus, so the comparison relies
+on self-supervised / system-level metrics: latency, score distribution,
+result-set overlap (Jaccard), rank correlation (Spearman), throughput.
 
-Experiment design
------------------
-Because no human-labelled relevance judgements exist for this corpus, the
-comparison uses self-supervised and system-level metrics:
-
-  1. Retrieval Latency         — average query time per method (ms)
-  2. Score Distribution        — distribution of similarity scores returned
-  3. Result-Set Overlap        — Jaccard similarity between top-k results
-                                 for each query, across the two methods
-  4. Rank Correlation          — Spearman rho between the ordered result lists
-  5. Throughput                — queries per second for each method
-
-Outputs
--------
-  reports/tfidf_chroma_latency.png
-  reports/tfidf_chroma_score_distribution.png
-  reports/tfidf_chroma_overlap_heatmap.png
-  reports/tfidf_chroma_rank_correlation.png
-  reports/tfidf_chroma_summary_dashboard.png
-  reports/tfidf_chroma_metrics.csv
-
-Usage
------
     .venv/bin/python -m scripts.tfidf_chroma
-    .venv/bin/python -m scripts.tfidf_chroma --docs data/loan_strategy_docs --n-results 5
-    .venv/bin/python -m scripts.tfidf_chroma --no-dense   # TF-IDF only (faster)
+    .venv/bin/python -m scripts.tfidf_chroma --no-dense   # TF-IDF only, faster
 """
 from __future__ import annotations
 
@@ -56,10 +29,7 @@ from config.settings import BASE_DIR, DATA_DIR
 from src.ai_advisor.document_loader import load_documents
 from src.tf_idf import TFIDFStore
 
-# ---------------------------------------------------------------------------
-# Test query suite  — representative loan advisory retrieval scenarios
-# ---------------------------------------------------------------------------
-
+# test queries — representative loan advisory retrieval scenarios
 TEST_QUERIES: List[str] = [
     "applicant with poor credit score and high debt to income ratio",
     "loan rejected due to thin credit file and short credit history",
@@ -88,9 +58,7 @@ _DOCS_DIR_DEF  = DATA_DIR / "loan_strategy_docs"
 _TFIDF_PERSIST = BASE_DIR / "data" / "tfidf_index"
 
 
-# ---------------------------------------------------------------------------
-# Chart styling
-# ---------------------------------------------------------------------------
+# chart styling
 
 PALETTE = {
     "tfidf":  "#4C72B0",   # muted blue
@@ -98,7 +66,6 @@ PALETTE = {
     "grid":   "#CCCCCC",
     "bg":     "#FAFAFA",
 }
-# Human-readable label for the dense embeddings store
 _DENSE_LABEL = "Dense Embeddings"
 
 plt.rcParams.update({
@@ -116,9 +83,7 @@ plt.rcParams.update({
 })
 
 
-# ---------------------------------------------------------------------------
-# Store builders
-# ---------------------------------------------------------------------------
+# store builders
 
 def _build_tfidf(docs_dir: Path) -> TFIDFStore:
     log.info("Building TF-IDF store from %s …", docs_dir)
@@ -135,9 +100,7 @@ def _build_dense(docs_dir: Path) -> Any:
     return store
 
 
-# ---------------------------------------------------------------------------
-# Benchmarking primitives
-# ---------------------------------------------------------------------------
+# benchmarking primitives
 
 def _timed_query(
     store: Any,
@@ -145,13 +108,8 @@ def _timed_query(
     n_results: int,
     n_warmup: int = 3,
 ) -> Tuple[List[Dict], List[float]]:
-    """
-    Run queries against a store and return results + per-query latencies (ms).
-
-    Performs n_warmup warm-up queries (excluded from timing) to allow any
-    JIT compilation or caching to settle before measurement.
-    """
-    # Warm-up
+    """Run queries against a store, return results + per-query latencies (ms).
+    n_warmup queries run first and aren't timed, to let caching settle."""
     for q in queries[:n_warmup]:
         store.query([q], n_results=n_results)
 
@@ -191,8 +149,7 @@ def _extract_scores(results: List[Dict]) -> List[List[float]]:
     scores = []
     for r in results:
         dists = r.get("distances", [[]])[0]
-        # Convert distances to similarities (1 - distance) for interpretability
-        scores.append([1.0 - d for d in dists])
+        scores.append([1.0 - d for d in dists])  # similarity = 1 - distance
     return scores
 
 
@@ -200,9 +157,7 @@ def _extract_ids(results: List[Dict]) -> List[List[str]]:
     return [r.get("ids", [[]])[0] for r in results]
 
 
-# ---------------------------------------------------------------------------
-# Metric computation
-# ---------------------------------------------------------------------------
+# metric computation
 
 def compute_metrics(
     tfidf_results: List[Dict],
@@ -210,9 +165,7 @@ def compute_metrics(
     chroma_results: Optional[List[Dict]],
     chroma_latencies: Optional[List[float]],
 ) -> pd.DataFrame:
-    """
-    Compute all comparison metrics and return a summary DataFrame.
-    """
+    """Compute all comparison metrics and return a summary DataFrame."""
     tfidf_scores = _extract_scores(tfidf_results)
     tfidf_ids    = _extract_ids(tfidf_results)
 
@@ -241,9 +194,7 @@ def compute_metrics(
     return pd.DataFrame(rows)
 
 
-# ---------------------------------------------------------------------------
-# Chart generators
-# ---------------------------------------------------------------------------
+# chart generators
 
 def _save_latency_chart(metrics: pd.DataFrame, out_dir: Path) -> Path:
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
@@ -421,9 +372,7 @@ def _save_rank_correlation(metrics: pd.DataFrame, out_dir: Path) -> Path:
 
 
 def _save_summary_dashboard(metrics: pd.DataFrame, out_dir: Path) -> Path:
-    """
-    A single-figure summary dashboard combining the key metrics side by side.
-    """
+    """Single-figure summary dashboard combining the key metrics side by side."""
     has_chroma = "chroma_latency_ms" in metrics.columns
 
     fig = plt.figure(figsize=(14, 8))
@@ -565,9 +514,7 @@ def _save_summary_dashboard(metrics: pd.DataFrame, out_dir: Path) -> Path:
     return out
 
 
-# ---------------------------------------------------------------------------
-# Console reporting
-# ---------------------------------------------------------------------------
+# console reporting
 
 def _print_summary(metrics: pd.DataFrame, tfidf_store: Any, chroma_store: Any) -> None:
     has_chroma = "chroma_latency_ms" in metrics.columns
@@ -636,9 +583,7 @@ def _print_summary(metrics: pd.DataFrame, tfidf_store: Any, chroma_store: Any) -
     print()
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+# cli
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
@@ -673,15 +618,11 @@ def main() -> None:
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # ------------------------------------------------------------------
-    # Build stores
-    # ------------------------------------------------------------------
+# build stores
     tfidf_store = _build_tfidf(docs_dir)
     chroma_store = _build_dense(docs_dir) if run_dense else None
 
-    # ------------------------------------------------------------------
-    # Benchmark
-    # ------------------------------------------------------------------
+# benchmark
     log.info("Running %d queries against TF-IDF store …", len(TEST_QUERIES))
     tfidf_results, tfidf_latencies = _timed_query(tfidf_store, TEST_QUERIES, n_results)
 
@@ -691,19 +632,13 @@ def main() -> None:
         log.info("Running %d queries against Dense Embedding store …", len(TEST_QUERIES))
         chroma_results, chroma_latencies = _timed_query(chroma_store, TEST_QUERIES, n_results)
 
-    # ------------------------------------------------------------------
-    # Metrics
-    # ------------------------------------------------------------------
+# metrics
     metrics = compute_metrics(tfidf_results, tfidf_latencies, chroma_results, chroma_latencies)
 
-    # ------------------------------------------------------------------
-    # Console report
-    # ------------------------------------------------------------------
+# console report
     _print_summary(metrics, tfidf_store, chroma_store)
 
-    # ------------------------------------------------------------------
-    # Charts
-    # ------------------------------------------------------------------
+# charts
     log.info("Generating charts in %s …", out_dir)
     _save_latency_chart(metrics, out_dir)
     _save_score_distribution(metrics, out_dir)
@@ -711,9 +646,7 @@ def main() -> None:
     _save_rank_correlation(metrics, out_dir)
     _save_summary_dashboard(metrics, out_dir)
 
-    # ------------------------------------------------------------------
-    # Persist metrics CSV
-    # ------------------------------------------------------------------
+# persist metrics csv
     csv_path = out_dir / "tfidf_chroma_metrics.csv"
     metrics.to_csv(csv_path, index=False)
     log.info("Metrics saved to %s", csv_path)

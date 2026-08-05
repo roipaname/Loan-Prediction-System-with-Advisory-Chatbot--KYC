@@ -1,37 +1,9 @@
 """
-src/ai_advisor/loan_context_builder.py
-=======================================
-Builds a rich, structured context dict for a loan applicant.
-
-This module bridges the database layer, the feature engineering contract, and
-the trained classifier.  Given either a database applicant UUID or a
-pre-computed feature row dict, it:
-
-  1. Fetches the raw applicant record and engineered features from the DB
-     (if an applicant_id is supplied).
-  2. Reconstructs the same numeric feature vector that was used at training
-     time, by applying the identical preprocessing steps as train_model.py.
-  3. Loads the best trained LoanClassifier from BEST_MODEL_PATH.
-  4. Produces a prediction (outcome, probability, risk tier).
-  5. Extracts human-readable feature importance scores.
-  6. Returns a comprehensive context dict that advisor.py uses to build
-     the advisory prompt and the final markdown report.
-
-Public API
-----------
-  LoanContextBuilder(model_path=None)
-    .build(applicant_id=None, feature_row=None, threshold=0.5) -> dict
-
-Context dict structure
-----------------------
-  {
-    "applicant": {personal, financial, loan fields as human-readable strings},
-    "engineered": {risk scores, ratios, flags as floats/bools},
-    "prediction": {outcome, probability, risk_tier, threshold},
-    "feature_importance": [{feature, importance, readable_name}, ...],  top-15
-    "query_text": str,   — semantic query for vector store retrieval
-    "model_algorithm": str,
-  }
+Builds the structured context dict advisor.py needs for a loan applicant:
+given a DB applicant UUID or a pre-computed feature row, reconstructs the
+training-time feature vector, runs it through the best trained classifier,
+and returns {applicant, engineered, prediction, feature_importance,
+query_text, model_algorithm}.
 """
 from __future__ import annotations
 
@@ -46,9 +18,7 @@ from loguru import logger as log
 from config.settings import BEST_MODEL_PATH, RANDOM_STATE
 from src.classifier.classifier import LoanClassifier
 
-# ---------------------------------------------------------------------------
-# Feature schema — mirrors scripts/train_model.py exactly
-# ---------------------------------------------------------------------------
+# feature schema — mirrors scripts/train_model.py exactly
 
 _TARGET_COL = "loan_status"
 _DROP_COLS   = frozenset([_TARGET_COL, "pipeline_version"])
@@ -72,10 +42,6 @@ _BOOL_COLS: List[str] = [
     "is_high_risk",
 ]
 
-# ---------------------------------------------------------------------------
-# Risk tier thresholds
-# ---------------------------------------------------------------------------
-
 _HIGH_RISK_THRESHOLD   = 0.40
 _MEDIUM_RISK_THRESHOLD = 0.70
 
@@ -89,62 +55,35 @@ def _probability_to_tier(prob: float) -> str:
     return "High Risk"
 
 
-# ---------------------------------------------------------------------------
-# Feature vector preparation
-# ---------------------------------------------------------------------------
-
 def _prepare_single_row(
     row: Dict[str, Any],
     feature_names: List[str],
 ) -> np.ndarray:
     """
-    Transform a raw feature dict into the model-compatible float64 vector.
-
-    The preprocessing mirrors prepare_features() in scripts/train_model.py
-    exactly.  For one-hot encoding on a single row we use drop_first=False
-    and then reindex to the training feature_names_, which correctly handles
-    the reference category (all dummies = 0 means the dropped category).
-
-    Parameters
-    ----------
-    row          : dict with all raw + engineered feature columns
-    feature_names: clf.feature_names_ from the fitted model
-
-    Returns
-    -------
-    float64 ndarray of shape (1, n_features)
+    Transform a raw feature dict into the model-compatible float64 vector,
+    mirroring prepare_features() in scripts/train_model.py. One-hot encoding
+    uses drop_first=False here (a single row would otherwise lose all dummies
+    for its category) and reindexes to the training feature_names_, so the
+    dropped reference category ends up correctly represented as all-zeros.
     """
     df = pd.DataFrame([row])
 
-    # Drop target and metadata columns
     df = df.drop(columns=[c for c in _DROP_COLS if c in df.columns], errors="ignore")
 
-    # Boolean flags → integer 0/1
     for col in _BOOL_COLS:
         if col in df.columns:
             df[col] = df[col].astype(int)
 
-    # One-hot encode categoricals — use drop_first=False for a single row
-    # to avoid losing all dummies (drop_first on a single unique value = empty).
-    # We then reindex to training feature_names so the reference category is
-    # implicitly represented as all-zeros.
     cats_present = [c for c in _CATEGORICAL_COLS if c in df.columns]
     if cats_present:
         df = pd.get_dummies(df, columns=cats_present, drop_first=False)
 
-    # Coerce everything to numeric; NaN fills to 0 (rare — only if a
-    # categorical value was completely absent from training vocabulary)
     df = df.apply(pd.to_numeric, errors="coerce")
 
-    # Align to training column set: add missing columns as 0, drop unknowns
     df = df.reindex(columns=feature_names, fill_value=0)
 
     return df.values.astype(np.float64)
 
-
-# ---------------------------------------------------------------------------
-# Feature importance human-readable mapping
-# ---------------------------------------------------------------------------
 
 _FEATURE_DISPLAY: Dict[str, str] = {
     "credit_score":                  "Credit Score",
@@ -179,10 +118,9 @@ _FEATURE_DISPLAY: Dict[str, str] = {
 
 def _readable_name(feature: str) -> str:
     """Map a model feature name (post-OHE) to a human-readable label."""
-    # Exact match first
     if feature in _FEATURE_DISPLAY:
         return _FEATURE_DISPLAY[feature]
-    # OHE dummy: "person_gender_male" → "Gender: Male"
+    # OHE dummy, e.g. "person_gender_male" -> "Gender: Male"
     for col in _CATEGORICAL_COLS:
         prefix = f"{col}_"
         if feature.startswith(prefix):
@@ -191,10 +129,6 @@ def _readable_name(feature: str) -> str:
             return f"{col_display}: {category_val}"
     return feature.replace("_", " ").title()
 
-
-# ---------------------------------------------------------------------------
-# DB field to plain-text converters
-# ---------------------------------------------------------------------------
 
 def _enum_val(obj: Any) -> Any:
     """Extract the .value string from a SQLAlchemy enum member, or return as-is."""
@@ -249,12 +183,10 @@ def _build_engineered_section(feat: Any) -> Dict[str, Any]:
 
 
 def _build_feature_row_from_db(app: Any, feat: Any) -> Dict[str, Any]:
-    """
-    Merge a LoanApplicant and EngineeredFeatures ORM row into a single dict
-    that matches the column schema of data/processed/loan_features.csv.
-    """
+    """Merge a LoanApplicant + EngineeredFeatures ORM row into a dict matching
+    the loan_features.csv column schema."""
     return {
-        # Raw fields (from LoanApplicant)
+        # from LoanApplicant
         "person_age":                       float(app.person_age or 0),
         "person_gender":                    _enum_val(app.person_gender),
         "person_education":                 _enum_val(app.person_education),
@@ -268,7 +200,7 @@ def _build_feature_row_from_db(app: Any, feat: Any) -> Dict[str, Any]:
         "cb_person_cred_hist_length":       float(app.cb_person_cred_hist_length or 0),
         "credit_score":                     int(app.credit_score or 0),
         "previous_loan_defaults_on_file":   bool(app.previous_loan_defaults_on_file),
-        # Engineered fields (from EngineeredFeatures)
+        # from EngineeredFeatures
         "debt_to_income_ratio":             float(feat.debt_to_income_ratio or 0),
         "loan_to_income_ratio":             float(feat.loan_to_income_ratio or 0),
         "credit_history_to_age_ratio":      float(feat.credit_history_to_age_ratio or 0),
@@ -293,17 +225,9 @@ def _build_feature_row_from_db(app: Any, feat: Any) -> Dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------------------
-# Query text builder
-# ---------------------------------------------------------------------------
-
 def _build_query_text(applicant: Dict, engineered: Dict, prediction: Dict) -> str:
-    """
-    Compose a natural-language query string for the vector store retrieval.
-
-    The query surfaces the most decision-relevant features so that the
-    retrieved policy documents are maximally relevant to this specific case.
-    """
+    """Compose a natural-language query for vector store retrieval, surfacing
+    the most decision-relevant features so retrieved docs match this case."""
     parts: List[str] = []
     outcome = prediction["outcome"]
 
@@ -343,19 +267,9 @@ def _build_query_text(applicant: Dict, engineered: Dict, prediction: Dict) -> st
     return " ".join(parts)
 
 
-# ---------------------------------------------------------------------------
-# Main context builder
-# ---------------------------------------------------------------------------
-
 class LoanContextBuilder:
-    """
-    Produces a structured context dict for a loan applicant.
-
-    Parameters
-    ----------
-    model_path : path to the trained model WITHOUT extension.
-                 Defaults to BEST_MODEL_PATH (with .joblib stripped).
-    """
+    """Produces a structured context dict for a loan applicant. model_path is
+    the trained model path without extension, defaults to BEST_MODEL_PATH."""
 
     def __init__(self, model_path: Optional[Union[str, Path]] = None) -> None:
         model_stem = Path(model_path) if model_path else BEST_MODEL_PATH.with_suffix("")
@@ -376,31 +290,13 @@ class LoanContextBuilder:
         feature_row: Optional[Dict[str, Any]] = None,
         threshold: float = 0.5,
     ) -> Dict[str, Any]:
-        """
-        Build the full context dict for an applicant.
-
-        Supply exactly one of applicant_id or feature_row.
-
-        Parameters
-        ----------
-        applicant_id : UUID of a LoanApplicant record in the database
-        feature_row  : pre-computed feature dict (same schema as loan_features.csv)
-        threshold    : probability cut-off for positive-class decision
-
-        Returns
-        -------
-        Context dict with keys: applicant, engineered, prediction,
-        feature_importance, query_text, model_algorithm
-        """
+        """Build the full context dict for an applicant. Supply exactly one
+        of applicant_id or feature_row."""
         if applicant_id is not None:
             return self._build_from_db(applicant_id, threshold)
         if feature_row is not None:
             return self._build_from_row(feature_row, threshold)
         raise ValueError("Supply either applicant_id or feature_row.")
-
-    # ------------------------------------------------------------------
-    # Private: build from database record
-    # ------------------------------------------------------------------
 
     def _build_from_db(
         self,
@@ -430,16 +326,11 @@ class LoanContextBuilder:
 
         return self._finalise(raw_row, applicant_section, engineered_section, threshold, str(applicant_id))
 
-    # ------------------------------------------------------------------
-    # Private: build from a pre-computed feature row dict
-    # ------------------------------------------------------------------
-
     def _build_from_row(
         self,
         feature_row: Dict[str, Any],
         threshold: float,
     ) -> Dict[str, Any]:
-        # Build applicant section from raw field names
         applicant_section = {
             "age":                           float(feature_row.get("person_age", 0)),
             "gender":                        feature_row.get("person_gender"),
@@ -481,10 +372,6 @@ class LoanContextBuilder:
         }
         return self._finalise(feature_row, applicant_section, engineered_section, threshold, "WALK_IN")
 
-    # ------------------------------------------------------------------
-    # Private: shared finalisation
-    # ------------------------------------------------------------------
-
     def _finalise(
         self,
         raw_row: Dict[str, Any],
@@ -514,7 +401,7 @@ class LoanContextBuilder:
             "threshold":   threshold,
         }
 
-        # Feature importance (not all models support this)
+        # not all models support this
         importance_list: List[Dict[str, Any]] = []
         try:
             fi_df = self.clf.get_feature_importance()

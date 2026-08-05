@@ -29,7 +29,7 @@ df, using_mock = api_client.get_applicants_safe()
 if using_mock:
     st.warning("Backend unavailable — showing sample data.")
 
-# ── KPIs ──────────────────────────────────────────────────────────────────────
+# KPIs
 total        = len(df)
 approved     = (df['predicted_outcome'] == 'approved').sum()
 approval_pct = approved / total * 100
@@ -37,7 +37,7 @@ avg_score    = int(df['credit_score'].mean())
 avg_loan     = df['loan_amnt'].mean()
 high_risk_n  = (df['risk_tier'] == 'High').sum()
 
-# ── Hero ──────────────────────────────────────────────────────────────────────
+# hero
 st.markdown(f"""
 <div class="hero-container">
   <div class="hero-tagline">Predict &middot; Advise &middot; Approve</div>
@@ -53,7 +53,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── KPI Strip ─────────────────────────────────────────────────────────────────
+# KPI strip
 c1, c2, c3, c4, c5 = st.columns(5)
 c1.metric("Total Applications",  f"{total:,}")
 c2.metric("Approval Rate",       f"{approval_pct:.1f}%",  delta="+2.3% vs last month")
@@ -63,7 +63,7 @@ c5.metric("High Risk Flagged",   f"{high_risk_n}",         delta="-3 this week",
 
 st.markdown('<div class="gold-divider"></div>', unsafe_allow_html=True)
 
-# ── Two-column layout: recent activity + mini charts ──────────────────────────
+# recent activity + mini charts
 left, right = st.columns([1.4, 1], gap="large")
 
 with left:
@@ -109,7 +109,7 @@ with right:
         unsafe_allow_html=True,
     )
 
-    # Approval donut
+    # approval donut
     fig_donut = go.Figure(go.Pie(
         labels=['Approved', 'Rejected'],
         values=[approved, total - approved],
@@ -130,7 +130,7 @@ with right:
     )
     st.plotly_chart(fig_donut, use_container_width=True, config={'displayModeBar': False})
 
-    # Risk tier bars
+    # risk tier bars
     risk_counts = df['risk_tier'].value_counts().reindex(['Low', 'Medium', 'High'], fill_value=0)
     fig_risk = go.Figure(go.Bar(
         x=list(risk_counts.index),
@@ -147,7 +147,7 @@ with right:
 
 st.markdown('<div class="gold-divider"></div>', unsafe_allow_html=True)
 
-# ── Quick Navigation Cards ────────────────────────────────────────────────────
+# quick navigation cards
 st.markdown(
     f'<div class="section-header">{_icon("map",14,GOLD_LT)} Navigate</div>',
     unsafe_allow_html=True,
@@ -178,7 +178,7 @@ for col, (nav_icon, title, desc) in zip(cols, nav_items):
             unsafe_allow_html=True,
         )
 
-# ── Footer ────────────────────────────────────────────────────────────────────
+# footer
 st.markdown(
     f'<div style="text-align:center;margin-top:2.5rem;padding-top:1rem;'
     f'border-top:1px solid {BORDER};color:{TEXT3};font-size:0.72rem;">'
