@@ -73,6 +73,11 @@ def _build_applicant_summary(ctx: Dict[str, Any]) -> str:
         f"Approval Probability: {pred.get('confidence', 'N/A')}",
         f"Risk Tier: {pred.get('risk_tier', 'N/A')}",
     ]
+    if pred.get("policy_rule") == "prior_default_on_file":
+        lines.append(
+            "Decision Basis: automatic rejection under lending policy, because a previous "
+            "loan default is on file (this overrides the model's risk score)."
+        )
     return "\n".join(lines)
 
 
@@ -213,7 +218,7 @@ def _call_huggingface(
                     {"role": "system", "content": system_block},
                     {"role": "user", "content": user_block},
                 ],
-                max_tokens=2_000,
+                max_tokens=1_500,
                 temperature=0.4,       # lower temperature reduces hallucination risk
                 top_p=0.92,
             )
@@ -305,6 +310,11 @@ def _build_fallback_report(ctx: Dict[str, Any], retrieved_docs: List[str], retri
         else "**REJECTED**"
     )
     decision_colour = "Approval granted" if outcome == "approved" else "Application not approved at this time"
+    policy_sentence = (
+        "Under lending policy, a previous loan default on file results in automatic rejection, "
+        "regardless of the model's risk score. "
+        if pred.get("policy_rule") == "prior_default_on_file" else ""
+    )
 
     financial_narrative = _build_financial_narrative(ctx)
 
@@ -369,7 +379,7 @@ def _build_fallback_report(ctx: Dict[str, Any], retrieved_docs: List[str], retri
 
 {outcome_line} | Confidence: {pred.get('confidence', 'N/A')} | Risk Tier: {pred.get('risk_tier', 'N/A')}
 
-{decision_colour}. Your application has been assessed by the LAPAS predictive model, which evaluated your financial profile across multiple dimensions. The sections below explain the key factors that influenced this decision.
+{decision_colour}. {policy_sentence}Your application has been assessed by the LAPAS predictive model, which evaluated your financial profile across multiple dimensions. The sections below explain the key factors that influenced this decision.
 
 ---
 
@@ -467,7 +477,7 @@ class LoanAdvisor:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(report, encoding="utf-8")
 
-        log.success("Advisory report saved to %s", output_path)
+        log.success("Advisory report saved to {}", output_path)
         return output_path
 
     def _retrieve(

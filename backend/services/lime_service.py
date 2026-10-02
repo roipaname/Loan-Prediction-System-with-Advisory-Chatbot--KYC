@@ -13,7 +13,8 @@ import numpy as np
 import pandas as pd
 from lime.lime_tabular import LimeTabularExplainer
 
-from config.settings import PROCESSED_DATA_DIR, RANDOM_STATE
+from backend.services.reference_stats import processed_features_path
+from config.settings import RANDOM_STATE
 from src.ai_advisor.loan_context_builder import _prepare_single_row
 from src.classifier.classifier import LoanClassifier
 
@@ -21,7 +22,7 @@ _BACKGROUND_SAMPLE_SIZE = 300
 
 
 def _build_background_matrix(clf: LoanClassifier) -> np.ndarray:
-    df = pd.read_csv(PROCESSED_DATA_DIR / "loan_features.csv")
+    df = pd.read_csv(processed_features_path())
     sample = df.sample(
         n=min(_BACKGROUND_SAMPLE_SIZE, len(df)), random_state=RANDOM_STATE
     )
@@ -35,7 +36,7 @@ def get_explainer(clf: LoanClassifier) -> LimeTabularExplainer:
     return LimeTabularExplainer(
         training_data=background,
         feature_names=clf.feature_names_,
-        class_names=["rejected", "approved"],
+        class_names=["repaid", "default"],
         mode="classification",
         discretize_continuous=True,
     )
@@ -47,12 +48,14 @@ def explain_row(
     num_features: int = 15,
     num_samples: int = 5000,
 ) -> Dict[str, float]:
-    """Return {feature_name: local_weight} for the 'approved' class, top-k by |weight|."""
+    """Return {feature_name: local_weight} toward approval, top-k by |weight|."""
     explainer = get_explainer(clf)
     exp = explainer.explain_instance(
         x_row.reshape(-1), clf.predict_proba,
         num_features=num_features, num_samples=num_samples, labels=(1,),
     )
+    # class 1 is default (see LoanContextBuilder._finalise); P(approve) =
+    # 1 - P(default), so LIME's local weights toward approval are the negation
     weights = dict(exp.as_map()[1])
-    result = {clf.feature_names_[idx]: round(float(w), 6) for idx, w in weights.items()}
+    result = {clf.feature_names_[idx]: round(-float(w), 6) for idx, w in weights.items()}
     return dict(sorted(result.items(), key=lambda kv: abs(kv[1]), reverse=True))

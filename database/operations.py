@@ -3,6 +3,7 @@ from typing import Optional, List, Dict, Any
 from uuid import UUID
 
 import pandas as pd
+from sqlalchemy import text
 
 from database.connection import Connection
 from database.schemas import (
@@ -110,9 +111,11 @@ _ENUM_NAME_TO_VALUE = {
 
 def get_applicants_flat(limit: int = 5000) -> pd.DataFrame:
     """Full applicant+features+prediction dataset as a flat DataFrame."""
-    df = pd.read_sql(_APPLICANTS_JOIN_SQL, conn.engine)
     if limit:
-        df = df.head(limit)
+        query = text(_APPLICANTS_JOIN_SQL + " LIMIT :limit")
+        df = pd.read_sql(query, conn.engine, params={"limit": limit})
+    else:
+        df = pd.read_sql(text(_APPLICANTS_JOIN_SQL), conn.engine)
     for col in ("predicted_outcome", "risk_tier"):
         df[col] = df[col].astype(object)
     for col, mapping in _ENUM_NAME_TO_VALUE.items():

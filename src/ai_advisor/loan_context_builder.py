@@ -55,6 +55,12 @@ def _probability_to_tier(prob: float) -> str:
     return "High Risk"
 
 
+def _is_truthy(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in {"yes", "true", "1"}
+    return bool(value) if value is not None else False
+
+
 def _prepare_single_row(
     row: Dict[str, Any],
     feature_names: List[str],
@@ -280,7 +286,7 @@ class LoanContextBuilder:
             )
         self.clf = LoanClassifier.load(model_stem)
         log.info(
-            "LoanContextBuilder: loaded %s from %s",
+            "LoanContextBuilder: loaded {} from {}",
             self.clf.algorithm, model_stem,
         )
 
@@ -388,17 +394,30 @@ class LoanContextBuilder:
                 "to produce a model that stores feature names."
             )
 
+        # loan_status=1 in the training data tracks default risk (it rises with
+        # interest rate, loan-to-income, renting and low income), so class 1 is
+        # P(default) and approval is its complement. The exception: the source
+        # dataset forces loan_status=0 for every prior defaulter, so the model
+        # scores them as near-zero risk; that's a hard policy rejection instead.
         X = _prepare_single_row(raw_row, feature_names)
-        proba = float(self.clf.predict_proba(X)[0, 1])
+        p_default = float(self.clf.predict_proba(X)[0, 1])
+        policy_rule = (
+            "prior_default_on_file"
+            if _is_truthy(raw_row.get("previous_loan_defaults_on_file"))
+            else None
+        )
+        proba = 0.0 if policy_rule else 1.0 - p_default
         outcome = "approved" if proba >= threshold else "rejected"
         risk_tier = _probability_to_tier(proba)
 
         prediction = {
-            "outcome":     outcome,
-            "probability": round(proba, 4),
-            "confidence":  f"{proba * 100:.1f}%",
-            "risk_tier":   risk_tier,
-            "threshold":   threshold,
+            "outcome":             outcome,
+            "probability":         round(proba, 4),
+            "default_probability": round(p_default, 4),
+            "policy_rule":         policy_rule,
+            "confidence":          f"{proba * 100:.1f}%",
+            "risk_tier":           risk_tier,
+            "threshold":           threshold,
         }
 
         # not all models support this
@@ -413,12 +432,12 @@ class LoanContextBuilder:
                         "readable_name": _readable_name(row_fi["feature"]),
                     })
         except Exception as exc:
-            log.warning("Feature importance unavailable for %s: %s", self.clf.algorithm, exc)
+            log.warning("Feature importance unavailable for {}: {}", self.clf.algorithm, exc)
 
         query_text = _build_query_text(applicant, engineered, prediction)
 
         log.info(
-            "Context built for applicant=%s: %s (P=%.4f, %s)",
+            "Context built for applicant={}: {} (P={:.4f}, {})",
             ref_id, outcome.upper(), proba, risk_tier,
         )
 

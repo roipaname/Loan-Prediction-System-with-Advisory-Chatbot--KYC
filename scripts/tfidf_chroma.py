@@ -86,17 +86,17 @@ plt.rcParams.update({
 # store builders
 
 def _build_tfidf(docs_dir: Path) -> TFIDFStore:
-    log.info("Building TF-IDF store from %s …", docs_dir)
+    log.info("Building TF-IDF store from {} …", docs_dir)
     store = TFIDFStore.from_directory(docs_dir)
-    log.info("TF-IDF store ready: %d docs, vocab=%d", store.count(), store.vocab_size())
+    log.info("TF-IDF store ready: {} docs, vocab={}", store.count(), store.vocab_size())
     return store
 
 
 def _build_dense(docs_dir: Path) -> Any:
     from src.ai_advisor.vector_store import VectorStore
-    log.info("Building Dense Embedding store from %s …", docs_dir)
+    log.info("Building Dense Embedding store from {} …", docs_dir)
     store = VectorStore.from_directory(docs_dir, force_reindex=False)
-    log.info("Dense Embedding store ready: %d docs", store.count())
+    log.info("Dense Embedding store ready: {} docs", store.count())
     return store
 
 
@@ -240,7 +240,7 @@ def _save_latency_chart(metrics: pd.DataFrame, out_dir: Path) -> Path:
     out = out_dir / "tfidf_chroma_latency.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
-    log.info("Saved latency chart → %s", out)
+    log.info("Saved latency chart → {}", out)
     return out
 
 
@@ -286,7 +286,7 @@ def _save_score_distribution(metrics: pd.DataFrame, out_dir: Path) -> Path:
     out = out_dir / "tfidf_chroma_score_distribution.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
-    log.info("Saved score distribution chart → %s", out)
+    log.info("Saved score distribution chart → {}", out)
     return out
 
 
@@ -325,7 +325,7 @@ def _save_overlap_heatmap(metrics: pd.DataFrame, out_dir: Path) -> Path:
     out = out_dir / "tfidf_chroma_overlap_heatmap.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
-    log.info("Saved overlap heatmap → %s", out)
+    log.info("Saved overlap heatmap → {}", out)
     return out
 
 
@@ -367,7 +367,7 @@ def _save_rank_correlation(metrics: pd.DataFrame, out_dir: Path) -> Path:
     out = out_dir / "tfidf_chroma_rank_correlation.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
-    log.info("Saved rank correlation chart → %s", out)
+    log.info("Saved rank correlation chart → {}", out)
     return out
 
 
@@ -510,7 +510,7 @@ def _save_summary_dashboard(metrics: pd.DataFrame, out_dir: Path) -> Path:
     out = out_dir / "tfidf_chroma_summary_dashboard.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
-    log.info("Saved summary dashboard → %s", out)
+    log.info("Saved summary dashboard → {}", out)
     return out
 
 
@@ -623,13 +623,13 @@ def main() -> None:
     chroma_store = _build_dense(docs_dir) if run_dense else None
 
 # benchmark
-    log.info("Running %d queries against TF-IDF store …", len(TEST_QUERIES))
+    log.info("Running {} queries against TF-IDF store …", len(TEST_QUERIES))
     tfidf_results, tfidf_latencies = _timed_query(tfidf_store, TEST_QUERIES, n_results)
 
     chroma_results   = None
     chroma_latencies = None
     if chroma_store is not None:
-        log.info("Running %d queries against Dense Embedding store …", len(TEST_QUERIES))
+        log.info("Running {} queries against Dense Embedding store …", len(TEST_QUERIES))
         chroma_results, chroma_latencies = _timed_query(chroma_store, TEST_QUERIES, n_results)
 
 # metrics
@@ -639,7 +639,7 @@ def main() -> None:
     _print_summary(metrics, tfidf_store, chroma_store)
 
 # charts
-    log.info("Generating charts in %s …", out_dir)
+    log.info("Generating charts in {} …", out_dir)
     _save_latency_chart(metrics, out_dir)
     _save_score_distribution(metrics, out_dir)
     _save_overlap_heatmap(metrics, out_dir)
@@ -649,9 +649,9 @@ def main() -> None:
 # persist metrics csv
     csv_path = out_dir / "tfidf_chroma_metrics.csv"
     metrics.to_csv(csv_path, index=False)
-    log.info("Metrics saved to %s", csv_path)
+    log.info("Metrics saved to {}", csv_path)
 
-    log.success("Benchmark complete. All outputs written to %s", out_dir)
+    log.success("Benchmark complete. All outputs written to {}", out_dir)
 
 
 if __name__ == "__main__":

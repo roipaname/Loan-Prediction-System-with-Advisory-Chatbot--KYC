@@ -22,7 +22,12 @@ def _sigmoid(z: np.ndarray) -> np.ndarray:
     )
 
 
-class CustomLogisticRegression(BaseEstimator, ClassifierMixin):
+class CustomLogisticRegression(ClassifierMixin, BaseEstimator):
+    # Mixin must precede BaseEstimator: sklearn's __sklearn_tags__ tag
+    # composition (1.6+) resolves via MRO, and BaseEstimator's own
+    # __sklearn_tags__ shadows ClassifierMixin's if it comes first, leaving
+    # estimator_type=None — which makes is_classifier() return False and
+    # breaks any scorer (e.g. roc_auc) that routes through decision_function.
     """
     From-scratch logistic regression, mini-batch SGD with Adam updates
     (momentum + RMSProp), supporting l1/l2/elasticnet penalties, balanced
@@ -196,17 +201,17 @@ class CustomLogisticRegression(BaseEstimator, ClassifierMixin):
                 else:
                     no_improve += 1
                     if no_improve >= self.n_iter_no_change:
-                        log.info("Early stopping at epoch %d (val_loss=%.6f)", epoch, val_loss)
+                        log.info("Early stopping at epoch {} (val_loss={:.6f})", epoch, val_loss)
                         w = best_w
                         break
             else:
                 if abs(prev_loss - train_loss) < self.tol:
-                    log.info("Convergence at epoch %d (loss=%.6f)", epoch, train_loss)
+                    log.info("Convergence at epoch {} (loss={:.6f})", epoch, train_loss)
                     break
                 prev_loss = train_loss
 
             if self.verbose and epoch % 50 == 0:
-                log.info("Epoch %4d | train_loss=%.6f", epoch, train_loss)
+                log.info("Epoch {:4d} | train_loss={:.6f}", epoch, train_loss)
 
         self.n_iter_    = epoch + 1
         self.coef_      = w[1:] if self.fit_intercept else w

@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from styles.theme import (inject, sidebar_logo, get_logo_image, apply_chart_layout,
                            GOLD, GOLD_LT, GOLD_DK, SILVER, TEXT, TEXT2, TEXT3,
@@ -126,7 +127,7 @@ with tab1:
                 orientation='h', y=-0.08, x=0.5, xanchor='center',
                 font=dict(size=10, color=TEXT2)))
             apply_chart_layout(fig, "Approval Split", 280)
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         with r1c2:
             fig = go.Figure()
@@ -142,7 +143,7 @@ with tab1:
             ))
             apply_chart_layout(fig, "Monthly Application Trend", 280)
             fig.update_layout(legend=dict(orientation='h', y=-0.15, x=0.5, xanchor='center'))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         with r1c3:
             fig = go.Figure(go.Scatter(
@@ -155,7 +156,7 @@ with tab1:
             fig.add_hline(y=apr_pct, line_dash='dash', line_color=SILVER,
                           annotation_text=f"Avg {apr_pct:.0f}%",
                           annotation_font_color=TEXT2, annotation_font_size=10)
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         st.markdown("<hr>", unsafe_allow_html=True)
         r2c1, r2c2 = st.columns(2, gap="small")
@@ -178,7 +179,7 @@ with tab1:
             apply_chart_layout(fig, "Applications & Approvals by Loan Grade", 300)
             fig.update_layout(barmode='overlay',
                               legend=dict(orientation='h', y=-0.12, x=0.5, xanchor='center'))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         with r2c2:
             grade_df = grade_df.sort_values('rate')
@@ -193,7 +194,7 @@ with tab1:
             ))
             apply_chart_layout(fig, "Approval Rate % by Loan Grade", 300)
             fig.update_layout(showlegend=False, xaxis=dict(range=[0, 110], showgrid=False))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         intent_df = df.groupby('loan_intent').agg(
             total=('id','count'), approved=('approved_flag','sum')).reset_index()
@@ -210,7 +211,7 @@ with tab1:
         apply_chart_layout(fig, "Applications by Loan Purpose", 300)
         fig.update_layout(barmode='overlay',
                           legend=dict(orientation='h', y=-0.14, x=0.5, xanchor='center'))
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
     except Exception as _e:
         _err("Overview & Approval", _e)
@@ -240,7 +241,7 @@ with tab2:
             ))
             apply_chart_layout(fig, "Approval Rate by Education Level", 300)
             fig.update_layout(showlegend=False, xaxis=dict(range=[0, 105], showgrid=False))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         with d2:
             g_df = df.groupby('person_gender').agg(
@@ -257,7 +258,7 @@ with tab2:
             fig.add_annotation(text="<b>Gender</b>", x=0.5, y=0.5, showarrow=False,
                                 font=dict(size=13, color=TEXT2, family='Inter'))
             apply_chart_layout(fig, "Applications by Gender", 300)
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         d3, d4 = st.columns(2, gap="small")
 
@@ -277,7 +278,7 @@ with tab2:
                 hovertemplate="%{x}: %{y:.1f}%<extra></extra>",
             ))
             apply_chart_layout(fig, "Approval Rate by Age Group (%)", 280)
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         with d4:
             own_df = df.groupby('person_home_ownership').agg(
@@ -293,7 +294,7 @@ with tab2:
             ))
             apply_chart_layout(fig, "Approval Rate by Home Ownership (%)", 280)
             fig.update_layout(showlegend=False, yaxis=dict(range=[0, 110]))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         fig = px.scatter(df, x='person_emp_exp', y='person_income',
                          color='predicted_outcome',
@@ -306,7 +307,7 @@ with tab2:
                                  'predicted_outcome': 'Outcome'})
         apply_chart_layout(fig, "Employment Experience vs Annual Income (coloured by Outcome)", 340)
         fig.update_traces(marker=dict(size=7, line=dict(width=0)))
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
     except Exception as _e:
         _err("Demographics", _e)
@@ -329,7 +330,7 @@ with tab3:
             apply_chart_layout(fig, "Credit Score Distribution by Outcome", 300)
             fig.update_layout(barmode='overlay',
                               legend=dict(orientation='h', y=-0.12, x=0.5, xanchor='center'))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         with f2:
             fig = go.Figure()
@@ -344,7 +345,7 @@ with tab3:
             apply_chart_layout(fig, "Interest Rate Distribution by Outcome (%)", 300)
             fig.update_layout(showlegend=True,
                               legend=dict(orientation='h', y=-0.12, x=0.5, xanchor='center'))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         f3, f4 = st.columns(2, gap="small")
 
@@ -361,7 +362,7 @@ with tab3:
             apply_chart_layout(fig, "Debt-to-Income Ratio by Outcome", 300)
             fig.update_layout(violinmode='overlay',
                               legend=dict(orientation='h', y=-0.12, x=0.5, xanchor='center'))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         with f4:
             fig = px.scatter(df, x='credit_score', y='loan_amnt',
@@ -374,7 +375,7 @@ with tab3:
                                      'risk_tier': 'Risk Tier'})
             apply_chart_layout(fig, "Credit Score vs Loan Amount (bubble = approval prob.)", 300)
             fig.update_traces(marker=dict(line=dict(width=0)))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         f5, f6 = st.columns(2, gap="small")
 
@@ -389,7 +390,7 @@ with tab3:
             apply_chart_layout(fig, "Risk Tier Distribution", 280)
             fig.update_layout(showlegend=True,
                               legend=dict(orientation='h', y=-0.06, x=0.5, xanchor='center'))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         with f6:
             pd_df = df.groupby('previous_loan_defaults_on_file').agg(
@@ -405,7 +406,7 @@ with tab3:
             ))
             apply_chart_layout(fig, "Approval Rate: Prior Default vs None", 280)
             fig.update_layout(showlegend=False, yaxis=dict(range=[0, 110]))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         inc_loan = df.groupby(['income_bucket','loan_grade'])['loan_amnt'].mean().reset_index()
         pivot = inc_loan.pivot(index='income_bucket', columns='loan_grade', values='loan_amnt')
@@ -421,7 +422,7 @@ with tab3:
             ),
         ))
         apply_chart_layout(fig, "Avg Loan Amount Heatmap: Income Bucket × Loan Grade", 300)
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
     except Exception as _e:
         _err("Financial & Risk", _e)
@@ -445,7 +446,7 @@ with tab4:
                 connector=dict(line=dict(color=BORDER, width=1)),
             ))
             apply_chart_layout(fig, "Credit Score Tier Funnel (All Applications)", 300)
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         with m2:
             from src.ai_advisor.loan_context_builder import _readable_name
@@ -465,7 +466,7 @@ with tab4:
             ))
             apply_chart_layout(fig, "Global Feature Importance (mean |LIME weight|)", 300)
             fig.update_layout(showlegend=False, xaxis=dict(showgrid=False))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         m3, m4 = st.columns(2, gap="small")
 
@@ -487,7 +488,7 @@ with tab4:
             apply_chart_layout(fig, "Classifier Performance Comparison", 320)
             fig.update_layout(barmode='group',
                               legend=dict(orientation='h', y=-0.18, x=0.5, xanchor='center'))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         with m4:
             fig = go.Figure()
@@ -504,7 +505,7 @@ with tab4:
             apply_chart_layout(fig, "Approval Probability Distribution", 320)
             fig.update_layout(barmode='overlay',
                               legend=dict(orientation='h', y=-0.14, x=0.5, xanchor='center'))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         fig = go.Figure()
         colors_tier = {'Low': SUCCESS, 'Medium': GOLD, 'High': DANGER}
@@ -519,7 +520,7 @@ with tab4:
         apply_chart_layout(fig, "Composite Risk Score Distribution by Tier", 300)
         fig.update_layout(violinmode='group',
                           legend=dict(orientation='h', y=-0.10, x=0.5, xanchor='center'))
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
     except Exception as _e:
         _err("Model Intelligence", _e)

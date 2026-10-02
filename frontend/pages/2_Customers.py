@@ -52,7 +52,7 @@ sort_by = st.sidebar.selectbox("Sort By",
      "Risk Tier", "Approval Probability (High-Low)"])
 
 st.sidebar.markdown("<br>", unsafe_allow_html=True)
-if st.sidebar.button("Reset Filters", use_container_width=True):
+if st.sidebar.button("Reset Filters", width="stretch"):
     st.rerun()
 
 # apply filters
@@ -197,7 +197,7 @@ for i in range(0, len(rows_iter), n_cols):
                 btn_col, _ = st.columns([1, 1])
                 with btn_col:
                     if st.button(f"Advisory", key=f"adv_{row['id']}",
-                                 use_container_width=True):
+                                 width="stretch"):
                         st.session_state['selected_customer'] = row['id']
                         st.switch_page("pages/4_AI_Advisory.py")
 
@@ -207,7 +207,7 @@ if total_pages > 1:
     p_cols = st.columns([1, 2, 1])
     with p_cols[0]:
         if st.button("Previous", disabled=st.session_state['cust_page'] == 0,
-                     use_container_width=True):
+                     width="stretch"):
             st.session_state['cust_page'] -= 1
             st.rerun()
     with p_cols[1]:
@@ -217,6 +217,6 @@ if total_pages > 1:
             unsafe_allow_html=True)
     with p_cols[2]:
         if st.button("Next", disabled=st.session_state['cust_page'] >= total_pages - 1,
-                     use_container_width=True):
+                     width="stretch"):
             st.session_state['cust_page'] += 1
             st.rerun()

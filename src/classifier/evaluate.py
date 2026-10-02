@@ -79,7 +79,7 @@ def evaluate_classifier(
     }
 
     log.info(
-        "[%s] acc=%.4f  AUC=%.4f  F1(w)=%.4f  AP=%.4f  MCC=%.4f",
+        "[{}] acc={:.4f}  AUC={:.4f}  F1(w)={:.4f}  AP={:.4f}  MCC={:.4f}",
         results["label"],
         results["accuracy"],
         results["roc_auc"],

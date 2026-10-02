@@ -138,7 +138,7 @@ class LoanApplicant(Base):
 
     loan_status = Column(SmallInteger, nullable=True)            # 1 = approved, 0 = rejected (ground truth)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)  # _APPLICANTS_JOIN_SQL sorts by this on every call
     source_split = Column(String(10), nullable=True)             # 'train', 'test', 'val'
 
     engineered_features: Mapped[Optional["EngineeredFeatures"]] = relationship(

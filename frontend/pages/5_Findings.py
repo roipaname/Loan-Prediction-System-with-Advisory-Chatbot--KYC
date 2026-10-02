@@ -79,7 +79,7 @@ with tab1:
             fig.update_layout(barmode='group', yaxis_type='log',
                               legend=dict(orientation='h', y=-0.35, x=0.5, xanchor='center'),
                               xaxis=dict(tickangle=-35))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         with c2:
             fig = go.Figure()
@@ -95,7 +95,7 @@ with tab1:
             fig.update_layout(barmode='group',
                               legend=dict(orientation='h', y=-0.35, x=0.5, xanchor='center'),
                               xaxis=dict(tickangle=-35))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         c3, c4 = st.columns(2, gap="small")
 
@@ -107,7 +107,7 @@ with tab1:
             apply_chart_layout(fig, "Result-Set Jaccard Overlap (TF-IDF ∩ Dense)", 300)
             fig.update_layout(showlegend=False, xaxis=dict(tickangle=-35),
                               yaxis=dict(range=[0, 1]))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         with c4:
             colors = [SUCCESS if v >= 0 else DANGER for v in rdf['spearman_rho']]
@@ -118,14 +118,14 @@ with tab1:
             apply_chart_layout(fig, "Rank Correlation (Spearman ρ, TF-IDF vs Dense)", 300)
             fig.add_hline(y=0, line_color=BORDER, line_width=1)
             fig.update_layout(showlegend=False, xaxis=dict(tickangle=-35))
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         st.markdown(
             f'<div class="section-header" style="margin-top:0.6rem;">'
             f'{_icon("clipboard-list",14,GOLD_LT)} Raw Metrics</div>',
             unsafe_allow_html=True,
         )
-        st.dataframe(rdf, use_container_width=True, hide_index=True)
+        st.dataframe(rdf, width="stretch", hide_index=True)
 
     except Exception as _e:
         _err("Retrieval Comparison", _e)
@@ -168,7 +168,7 @@ with tab2:
         apply_chart_layout(fig, "Classifier Performance Comparison", 360)
         fig.update_layout(barmode='group',
                           legend=dict(orientation='h', y=-0.16, x=0.5, xanchor='center'))
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         c1, c2 = st.columns(2, gap="small")
         with c1:
@@ -181,7 +181,7 @@ with tab2:
             ))
             apply_chart_layout(fig, "Brier Score (lower = better calibrated)", 300)
             fig.update_layout(showlegend=False)
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         with c2:
             fig = go.Figure(go.Bar(
@@ -193,7 +193,7 @@ with tab2:
             ))
             apply_chart_layout(fig, "Composite Rank (lower = better overall)", 300)
             fig.update_layout(showlegend=False)
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
         st.markdown(
             f'<div class="section-header" style="margin-top:0.6rem;">'
@@ -203,7 +203,7 @@ with tab2:
         display_cols = ['rank', 'model', 'accuracy', 'precision', 'recall', 'f1_macro',
                          'f1_weighted', 'roc_auc', 'avg_precision', 'brier_score', 'mcc',
                          'composite_rank', 'is_champion']
-        st.dataframe(cdf[display_cols], use_container_width=True, hide_index=True)
+        st.dataframe(cdf[display_cols], width="stretch", hide_index=True)
 
     except Exception as _e:
         _err("Classifier Comparison", _e)

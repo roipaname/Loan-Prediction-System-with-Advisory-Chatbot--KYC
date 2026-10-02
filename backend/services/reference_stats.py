@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 
 import pandas as pd
 
@@ -20,10 +21,19 @@ class ReferenceStats:
     high_risk_threshold: float
 
 
+def processed_features_path() -> Path:
+    # full dataset preferred; the DB-reconstructed sample (scripts/
+    # reconstruct_processed_from_db.py) is a fallback when it's unavailable
+    path = PROCESSED_DATA_DIR / "loan_features.csv"
+    if not path.exists():
+        path = PROCESSED_DATA_DIR / "loan_features_from_db.csv"
+    return path
+
+
 @lru_cache(maxsize=1)
 def get_reference_stats() -> ReferenceStats:
     df = pd.read_csv(
-        PROCESSED_DATA_DIR / "loan_features.csv",
+        processed_features_path(),
         usecols=["loan_int_rate", "credit_score", "composite_risk_score"],
     )
     return ReferenceStats(

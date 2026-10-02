@@ -62,10 +62,9 @@ def score_new_application(raw: Dict[str, Any]) -> Dict[str, Any]:
     Returns {display_code, outcome, probability, risk_tier}.
     """
     raw = dict(raw)
-    raw.setdefault(
-        "loan_percent_income",
-        round(raw["loan_amnt"] / max(raw["person_income"], 1), 4),
-    )
+    # model_dump() always includes the key (as None), so setdefault won't do
+    if raw.get("loan_percent_income") is None:
+        raw["loan_percent_income"] = round(raw["loan_amnt"] / max(raw["person_income"], 1), 4)
 
     engineered = engineer_row(raw, get_reference_stats())
 

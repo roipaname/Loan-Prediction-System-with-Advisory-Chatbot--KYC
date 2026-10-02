@@ -40,6 +40,8 @@ def generate_advisory(code: str, retriever: str = "tfidf"):
         raise HTTPException(status_code=404, detail="Applicant not found")
 
     ctx = get_context_builder().build(applicant_id=app.id)
+    # report shows the customer-facing code, not the internal UUID
+    ctx["ref_id"] = f"APP-{code}"
     store = get_retriever(retriever)
     report = LoanAdvisor(store).advise(ctx)
 

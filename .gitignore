@@ -125,6 +125,7 @@ Thumbs.db
 *.bak
 *.tmp
 *.temp
+*.zip
 
 # =========================
 # 🔑 Secrets / Credentials
@@ -160,3 +161,8 @@ results/
 tokenizer.json
 vocab.json
 merges.txt
+backups/
+*.nosync
+# symlinks to the iCloud-excluded *.nosync dirs (dir-only patterns above miss symlinks)
+/.venv
+/models

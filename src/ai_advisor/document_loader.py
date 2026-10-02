@@ -14,8 +14,8 @@ from loguru import logger as log
 
 def _chunk_text(
     text: str,
-    chunk_size: int=512,
-    chunk_overlap: int=64,
+    chunk_size: int=180,
+    chunk_overlap: int=30,
     source: str='',
 ) -> List[Dict]:
     """Split text into overlapping word-level chunks."""
@@ -58,7 +58,7 @@ def _read_pdf(path: Path) -> str:
         pages  = [page.extract_text() or "" for page in reader.pages]
         return "\n\n".join(p for p in pages if p.strip())
     except Exception as exc:
-        log.warning("pypdf failed for %s (%s); falling back to empty string.", path.name, exc)
+        log.warning("pypdf failed for {} ({}); falling back to empty string.", path.name, exc)
         return ""
 
 
@@ -70,7 +70,7 @@ def _read_docx(path: Path) -> str:
         paras = [p.text for p in doc.paragraphs if p.text.strip()]
         return "\n\n".join(paras)
     except Exception as exc:
-        log.warning("python-docx failed for %s (%s); returning empty string.", path.name, exc)
+        log.warning("python-docx failed for {} ({}); returning empty string.", path.name, exc)
         return ""
 
 
@@ -84,10 +84,14 @@ _READERS = {
 
 def load_documents(
     directory: Union[str, Path],
-    chunk_size: int = 400,
-    chunk_overlap: int = 50,
+    chunk_size: int = 180,
+    chunk_overlap: int = 30,
 ) -> List[Dict]:
-    """Load and chunk every .txt/.md/.pdf/.docx file in a directory."""
+    """Load and chunk every .txt/.md/.pdf/.docx file in a directory.
+
+    chunk_size defaults to ~180 words (~230-250 tokens) to stay under
+    all-MiniLM-L6-v2's 256-token truncation limit — a larger chunk_size
+    silently loses everything past token 256 when embedded."""
     directory = Path(directory)
     if not directory.exists():
         raise FileNotFoundError(f"Document directory not found: {directory}")
@@ -100,11 +104,11 @@ def load_documents(
             continue
 
         reader = _READERS[path.suffix.lower()]
-        log.info("Loading  %s …", path.name)
+        log.info("Loading  {} …", path.name)
 
         raw_text = reader(path)
         if not raw_text.strip():
-            log.warning("  %s: extracted no text; skipping.", path.name)
+            log.warning("  {}: extracted no text; skipping.", path.name)
             continue
 
         chunks = _chunk_text(
@@ -118,10 +122,10 @@ def load_documents(
 
         all_chunks.extend(chunks)
         file_count += 1
-        log.info("  %s → %d chunks", path.name, len(chunks))
+        log.info("  {} → {} chunks", path.name, len(chunks))
 
     log.info(
-        "Document loader: %d files, %d total chunks (chunk_size=%d, overlap=%d)",
+        "Document loader: {} files, {} total chunks (chunk_size={}, overlap={})",
         file_count, len(all_chunks), chunk_size, chunk_overlap,
     )
     return all_chunks

@@ -23,7 +23,9 @@ uv pip install -e .
 .venv/bin/python -m streamlit run frontend/Home.py
 
 # Feature engineering: data/raw/loan_data.csv → data/processed/loan_features.csv
-.venv/bin/python database/feature_eng.py
+# (run as a module: the editable install only puts src/ on sys.path, so
+#  `python database/feature_eng.py` fails with "No module named 'config'")
+.venv/bin/python -m database.feature_eng
 
 # Train all classifiers, evaluate, save best to models/best_model.joblib
 # (also writes models/model_comparison.csv, the full ranked metrics table)
@@ -40,9 +42,19 @@ uv pip install -e .
 .venv/bin/python -m scripts.populate_db
 .venv/bin/python -m scripts.populate_db --sample-size 500   # smaller/faster
 
+# Re-score every stored applicant in place (after changing decision logic or the model)
+.venv/bin/python -m scripts.rescore_predictions --dry-run
+
+# Rebuild data/processed/loan_features_from_db.csv from Postgres when the full CSV
+# is unavailable (backend reference stats + LIME background fall back to it)
+.venv/bin/python -m scripts.reconstruct_processed_from_db
+
 # Benchmark TF-IDF vs Dense Embedding retrieval (outputs charts to reports/)
 .venv/bin/python -m scripts.tfidf_chroma
 .venv/bin/python -m scripts.tfidf_chroma --no-dense   # TF-IDF only, no model loading
+
+# Regenerate the paper's figures (architecture diagrams + metric charts) into figs/
+.venv/bin/python -m scripts.generate_paper_figures
 ```
 
 ---
@@ -50,18 +62,18 @@ uv pip install -e .
 ## Architecture
 
 ### `config/settings.py`
-Single source of truth for all paths, environment variables, and training defaults. Imported by every module. Sets up `loguru` file sinks at import time. Key exports: `BASE_DIR`, `DATA_DIR`, `MODELS_DIR`, `BEST_MODEL_PATH`, `HF_TOKEN`, `HF_MODEL`.
+Single source of truth for all paths, environment variables, and training defaults. Imported by every module. Sets `OMP_NUM_THREADS=1` / `TOKENIZERS_PARALLELISM=false` and loguru file sinks at import time, before anything else can import torch/xgboost. Key exports: `BASE_DIR`, `DATA_DIR`, `MODELS_DIR`, `BEST_MODEL_PATH`, `HF_TOKEN`, `HF_MODEL`.
 
 ### `database/`
 - `schemas.py` — SQLAlchemy ORM models. Seven tables: `loan_applicants`, `engineered_features`, `ml_models`, `model_predictions`, `retrieval_documents`, `rag_explanations`, `rag_explanation_chunks`, `evaluator_assessments`. The `EvaluatorAssessment` table holds human rubric scores (Experiment 3) for Cohen's Kappa computation. `LoanApplicant.display_code` is a short customer-facing id (`APP-XXXXXXXX` in the UI) — the real primary key is a UUID used only internally for joins/FKs. **Gotcha**: SQLAlchemy's `Enum()` column type stores the Python enum *member name* in Postgres, not `.value` (e.g. `PersonEducationEnum.master` → stored as `"master"`, not `"Master"`). The ORM translates this transparently on every read; raw SQL does not — see `operations.py`'s `_ENUM_NAME_TO_VALUE` below.
 - `feature_eng.py` — standalone ETL script; reads raw CSV, derives all engineered columns (ratios, flags, buckets), writes processed CSV. Column names mirror `EngineeredFeatures` ORM schema 1-to-1. Two columns (`credit_risk_interaction`, `is_high_risk`) are computed from **dataset-wide** medians/quantiles, not per-row — single-row (re)computation must reuse precomputed reference stats instead (see `backend/services/reference_stats.py`). The raw dataset has no `loan_grade` column at all (feature_eng.py never produces one).
 - `connection.py` — SQLAlchemy connection pool wrapper.
-- `operations.py` — CRUD helpers (`save`, `get_by_id`, `create_applicant`, `get_applicant_by_code`, etc.) plus `get_applicants_flat()` — a single raw-SQL join (applicants + engineered_features + latest prediction) returned as a flat DataFrame for the frontend/backend; `_ENUM_NAME_TO_VALUE` remaps the raw enum-name strings back to their intended display values there.
+- `operations.py` — CRUD helpers (`save`, `get_by_id`, `create_applicant`, `get_applicant_by_code`, etc.) plus `get_applicants_flat()` — a single raw-SQL join (applicants + engineered_features + latest prediction) returned as a flat DataFrame for the frontend/backend; `_ENUM_NAME_TO_VALUE` remaps the raw enum-name strings back to their intended display values there. `limit` is pushed into the SQL as a bound `LIMIT` parameter, not applied via `pandas.head()` after fetching the full table. The join's `ORDER BY a.created_at DESC` is backed by an index on `LoanApplicant.created_at` (`schemas.py`) — `Base.metadata.create_all()` only creates missing tables, not missing indexes on existing ones, so a schema change like this needs a manual `CREATE INDEX IF NOT EXISTS` against any already-populated DB.
 - `insert_processed.py` lives in `scripts/`, not `database/` (its own docstring says otherwise) — chunk-based idempotent bulk insert into `loan_applicants` + `engineered_features`, with enum-coercion maps (`GENDER_MAP`, `INTENT_MAP`, etc.) reused by `scripts/populate_db.py`.
 
 ### `src/classifier/`
-- `classifier.py` — `LoanClassifier` wraps four algorithms (random_forest, xgboost, naive_bayes, logistic_regression) behind a common API: `train()`, `predict()`, `predict_proba()`, `save()`, `load()`. Each uses a sklearn `Pipeline` with `StandardScaler` + the classifier; XGBoost is `CalibratedClassifierCV`-wrapped. Note: `config/settings.py`'s `AVAILABLE_CLASSIFIERS` list also names `svm`, `gradient_boosting`, `lightgbm`, `catboost` — these are aspirational/unimplemented; only the four above exist in code.
-- `logistic_regression.py` — `CustomLogisticRegression`: from-scratch implementation (gradient descent + L2) used as a comparison baseline.
+- `classifier.py` — `LoanClassifier` wraps four algorithms (random_forest, xgboost, naive_bayes, logistic_regression) behind a common API: `train()`, `predict()`, `predict_proba()`, `save()`, `load()`. Each uses a sklearn `Pipeline` with `StandardScaler` + the classifier; XGBoost is `CalibratedClassifierCV`-wrapped. `config/settings.py`'s `AVAILABLE_CLASSIFIERS` list matches these four exactly.
+- `logistic_regression.py` — `CustomLogisticRegression`: from-scratch implementation (gradient descent + L2) used as a comparison baseline. **Gotcha**: it's declared `class CustomLogisticRegression(ClassifierMixin, BaseEstimator)` — that order matters. sklearn 1.6+'s tag system resolves `__sklearn_tags__()` via MRO, and if `BaseEstimator` comes first it shadows `ClassifierMixin`'s tag contribution, leaving `estimator_type=None`; `is_classifier()` then returns `False` and any scorer that routes through `decision_function` (e.g. `roc_auc` in `LoanClassifier.tune()`) silently fails every CV fold (scores go to `nan`, best params come out arbitrary). Mixins must precede `BaseEstimator` in the base list.
 - `evaluate.py` — `evaluate_classifier()` returns a metrics dict (accuracy, F1, ROC-AUC, MCC, Brier score, avg precision); `compare_classifiers()` builds a composite rank table.
 
 ### `src/tf_idf/`
@@ -70,24 +82,27 @@ Custom sparse vector store. `TFIDFStore` uses sklearn `TfidfVectorizer` (bigrams
 ### `src/ai_advisor/`
 Four modules wired together:
 
-1. **`document_loader.py`** — chunks `.txt`, `.md`, `.pdf` (pypdf), `.docx` (python-docx) files into overlapping word-level windows. Used by both vector stores.
+1. **`document_loader.py`** — chunks `.txt`, `.md`, `.pdf` (pypdf), `.docx` (python-docx) files into overlapping word-level windows. Used by both vector stores. `load_documents()` defaults to `chunk_size=180, chunk_overlap=30` (~180 words ≈ 230-250 tokens) — deliberately small: `all-MiniLM-L6-v2` truncates at 256 tokens, so a larger `chunk_size` silently drops everything past that point before embedding. Measured effect of moving off the old 400/50 default: dense top-1 score 0.598→0.635, TF-IDF top-1 0.192→0.248, TF-IDF/dense agreement (Jaccard) 0.357→0.433 (`scripts/tfidf_chroma.py`'s benchmark, 20 queries).
 
-2. **`vector_store.py`** — `VectorStore` backs ChromaDB's `PersistentClient` with sentence-transformers (`all-MiniLM-L6-v2`) for dense retrieval. **Critical**: texts are encoded ONE AT A TIME (`self._embed(text)` in a loop) — batch encoding causes SIGSEGV on macOS Intel due to OMP/libdispatch thread contention. `chromadb.create_collection()` must NOT receive an `embedding_function` argument; ChromaDB 1.x validates the signature and rejects plain Python functions. Explicit embeddings are always passed to `collection.add()` / `collection.query()`. Index persists at `data/chroma_db/`. Importing this module pulls in `torch` — see the macOS Intel constraint below about load order relative to the xgboost classifier.
+2. **`vector_store.py`** — `VectorStore` backs ChromaDB's `PersistentClient` with sentence-transformers (`all-MiniLM-L6-v2`) for dense retrieval. **Critical**: texts are encoded ONE AT A TIME (`self._embed(text)` in a loop) — batch encoding causes SIGSEGV on macOS Intel due to OMP/libdispatch thread contention. `create_collection()` calls must NOT receive an `embedding_function` argument; ChromaDB 1.x validates the callable signature and rejects plain Python methods (both the constructor's and `from_directory()`'s `force_reindex=True` branch now follow this — the latter used to pass one and would raise `ValueError` if exercised). Explicit embeddings are always passed to `collection.add()` / `collection.query()`. Index persists at `data/chroma_db/` — delete that directory (and `models/TF-IDF/`, which shares the same `load_documents()` chunking) to force a full reindex after changing chunk size or the source documents. Importing this module pulls in `torch` — see the macOS Intel constraint below about load order relative to the xgboost classifier.
 
-3. **`loan_context_builder.py`** — `LoanContextBuilder.build()` accepts either a DB `applicant_id` (UUID) or a raw `feature_row` dict. Reconstructs the training-time feature vector using `pd.get_dummies(drop_first=False)` + `df.reindex(clf.feature_names_, fill_value=0)` to align columns. Loads `models/best_model.joblib`, runs inference, and returns a structured context dict with prediction, risk tier, and top-15 feature importances (global, not per-applicant — see `backend/services/lime_service.py` for per-applicant attribution).
+3. **`loan_context_builder.py`** — `LoanContextBuilder.build()` accepts either a DB `applicant_id` (UUID) or a raw `feature_row` dict. Reconstructs the training-time feature vector using `pd.get_dummies(drop_first=False)` + `df.reindex(clf.feature_names_, fill_value=0)` to align columns. Loads `models/best_model.joblib`, runs inference, and returns a structured context dict with prediction, risk tier, and top-15 feature importances (global, not per-applicant — see `backend/services/lime_service.py` for per-applicant attribution). **Label semantics**: `loan_status=1` in the dataset behaves as *default / high risk* (it rises with interest rate, loan-to-income, renting, low income), so `predict_proba[:, 1]` is P(default); `_finalise()` reports `probability` = approval = 1 - P(default) (plus the raw `default_probability`), and a prior default on file is a hard policy rejection (`policy_rule="prior_default_on_file"`, probability 0) because the source data forces `loan_status=0` for every prior defaulter. `lime_service.explain_row()` negates LIME's class-1 weights so they point toward approval. In `models/model_comparison.csv`, precision/recall/avg_precision are therefore for the *default* class.
 
-4. **`advisor.py`** — `LoanAdvisor.advise(context, n_docs=5)` retrieves relevant policy chunks from either vector store, builds a Mistral instruction-format prompt (`<s>[INST]...[/INST]`), and calls `InferenceClient.text_generation()` at `temperature=0.4`. Falls back to `_build_fallback_report()` (rule-based Markdown) when LLM is unavailable. Output must not contain em dashes (enforced in the system prompt).
+4. **`advisor.py`** — `LoanAdvisor.advise(context, n_docs=5)` retrieves relevant policy chunks from either vector store, builds a `(system_block, user_block)` chat message pair, and calls `InferenceClient.chat_completion()` at `temperature=0.4`, `max_tokens=1500`. It deliberately does **not** use `text_generation()` with a raw Mistral `<s>[INST]...[/INST]` string — HF providers now reject that for instruct models ("not supported for task text-generation"), so the prompt is built as `messages=[{"role": "system", ...}, {"role": "user", ...}]` instead. Falls back to `_build_fallback_report()` (rule-based Markdown, built from three prose paragraphs plus a risk table) when the LLM call fails or `use_llm=False`. Output must not contain em dashes (enforced in the system prompt).
 
 `src/ai_advisor/__init__.py` intentionally has no re-exports (no code imports from the package root — always `from src.ai_advisor.<module> import ...`). Adding eager re-exports there reintroduces the SIGSEGV/hang described below, since importing `vector_store` at package-init time forces `torch` to load before anything else in the package gets a chance to.
 
 ### `scripts/tfidf_chroma.py`
 Benchmarks TF-IDF vs Dense Embedding retrieval over 20 domain-specific loan queries. Metrics: latency, throughput, top-1 score, Jaccard overlap, Spearman rho. Outputs 5 PNG charts + a metrics CSV to `reports/` (`tfidf_chroma_metrics.csv`, served by `backend`'s `/comparisons/retrieval`).
 
+### `scripts/generate_paper_figures.py`
+Regenerates the seven figures used in the research paper write-up into `figs/` (vector `.pdf` + 300dpi `.png` for each). Figures 1–2 are architecture/flow diagrams with no CSV source; 3–4 are built from `models/model_comparison.csv`; 5–7 from `reports/tfidf_chroma_metrics.csv`.
+
 ### `backend/`
-FastAPI app (`main.py`) serving the frontend — the DB, trained model, and RAG pipeline are otherwise inert without it. `deps.py` holds process-wide singletons (classifier, context builder, TF-IDF/vector stores) built once and reused; `get_classifier()` is warmed up in a `startup` event specifically to enforce the load order described below. `routers/` has `applicants` (list/detail/submit), `advisory` (per-applicant LIME attribution + on-demand advisory generation), `comparisons` (serves `models/model_comparison.csv` and `reports/tfidf_chroma_metrics.csv` as JSON). `services/` has `feature_engineering.py` (single-row mirror of `database/feature_eng.py`, using `reference_stats.py`'s precomputed medians/quantiles instead of live ones), `scoring_service.py` (orchestrates a new application end to end), and `lime_service.py` (per-applicant local feature attribution via `lime.lime_tabular` — this project uses LIME instead of SHAP throughout; there is no real SHAP anywhere in `src/classifier/`).
+FastAPI app (`main.py`) serving the frontend — the DB, trained model, and RAG pipeline are otherwise inert without it. `deps.py` holds process-wide singletons (classifier, context builder, TF-IDF/vector stores) built once and reused; `get_classifier()` is warmed up in a `startup` event specifically to enforce the load order described below. `routers/` has `applicants` (list/detail/submit), `advisory` (per-applicant LIME attribution + on-demand advisory generation), `comparisons` (serves `models/model_comparison.csv` and `reports/tfidf_chroma_metrics.csv` as JSON, cached in-process keyed by each file's mtime so repeated requests don't re-parse the CSV — `scripts/train_model.py`/`scripts/tfidf_chroma.py` rewrite these files, which is what invalidates the cache). `services/` has `feature_engineering.py` (single-row mirror of `database/feature_eng.py`, using `reference_stats.py`'s precomputed medians/quantiles instead of live ones), `scoring_service.py` (orchestrates a new application end to end), and `lime_service.py` (per-applicant local feature attribution via `lime.lime_tabular` — this project uses LIME instead of SHAP throughout; there is no real SHAP anywhere in `src/classifier/`).
 
 ### `frontend/`
-Streamlit multipage app. Entry point: `frontend/Home.py`. Pages under `frontend/pages/`:
+Streamlit multipage app. Entry point: `frontend/Home.py`. Pages under `frontend/pages/` each insert both the `frontend/` directory and the project root onto `sys.path` (two `sys.path.insert()` calls) so they can import `styles.theme` as well as `config`/`src`/`backend` modules directly:
 - `1_Customer_Application.py` — submit new loan application (real backend scoring)
 - `2_Customers.py` — browse all applicants
 - `3_Dashboard.py` — aggregate KPIs and charts
@@ -148,7 +163,7 @@ data/loan_strategy_docs/                  │
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string |
 | `HF_API_TOKEN` | HuggingFace Inference API token |
-| `HF_MODEL` | Defaults to `mistralai/Mistral-7B-Instruct-v0.2` |
+| `HF_MODEL` | Defaults to `meta-llama/Llama-3.1-8B-Instruct` (was Mistral-7B-Instruct-v0.2 until its only HF provider went down, Oct 2026) |
 | `DEFAULT_CLASSIFIERS` | Default algorithm for training (default: `random_forest`) |
 | `MODEL_SELECTION_METRIC` | Metric used to crown best model (default: `roc_auc`) |
 | `API_BASE_URL` | Frontend → backend base URL (default: `http://localhost:8000`) |

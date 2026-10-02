@@ -1,3 +1,10 @@
+# NOTE: this file tracks dependencies for the paper's analysis/notebook work
+# (Experiment 1 fairness metrics via fairlearn, Experiment 3 inter-rater
+# reliability via krippendorff/pingouin, exploratory tuning via mlflow/optuna,
+# etc.) — it is NOT the app's runtime dependency list. pyproject.toml is the
+# source of truth for what backend/frontend/src actually import; install that
+# with `uv pip install -e .` to run the app.
+
 # ── Core Data & ML ──────────────────────────────────────────
 numpy
 pandas

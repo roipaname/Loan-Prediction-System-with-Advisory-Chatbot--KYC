@@ -128,7 +128,7 @@ with right:
         showlegend=True,
         legend=dict(orientation='h', y=-0.05, x=0.5, xanchor='center'),
     )
-    st.plotly_chart(fig_donut, use_container_width=True, config={'displayModeBar': False})
+    st.plotly_chart(fig_donut, width="stretch", config={'displayModeBar': False})
 
     # risk tier bars
     risk_counts = df['risk_tier'].value_counts().reindex(['Low', 'Medium', 'High'], fill_value=0)
@@ -143,7 +143,7 @@ with right:
     ))
     apply_chart_layout(fig_risk, "Risk Tier Distribution", height=220)
     fig_risk.update_layout(showlegend=False, xaxis_title=None, yaxis_title=None)
-    st.plotly_chart(fig_risk, use_container_width=True, config={'displayModeBar': False})
+    st.plotly_chart(fig_risk, width="stretch", config={'displayModeBar': False})
 
 st.markdown('<div class="gold-divider"></div>', unsafe_allow_html=True)
 

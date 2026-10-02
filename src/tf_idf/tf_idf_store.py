@@ -81,7 +81,7 @@ class TFIDFStore:
         existing_ids = set(self._ids)
         for doc, meta, doc_id in zip(documents, metadatas, ids):
             if doc_id in existing_ids:
-                log.debug("TFIDFStore: skipping duplicate id=%s", doc_id)
+                log.debug("TFIDFStore: skipping duplicate id={}", doc_id)
                 continue
             self._documents.append(doc)
             self._metadatas.append(meta)
@@ -92,7 +92,7 @@ class TFIDFStore:
         self._fitted = True
 
         log.info(
-            "TFIDFStore '%s': %d docs indexed  vocab=%d",
+            "TFIDFStore '{}': {} docs indexed  vocab={}",
             self.name, len(self._documents), len(self._vectorizer.vocabulary_),
         )
         return self
@@ -168,7 +168,7 @@ class TFIDFStore:
         }
         (directory / self._DATA_FILE).write_text(json.dumps(data, indent=2, default=str))
 
-        log.info("TFIDFStore persisted to %s (%d docs)", directory, len(self._documents))
+        log.info("TFIDFStore persisted to {} ({} docs)", directory, len(self._documents))
         return directory
 
     @classmethod
@@ -197,15 +197,15 @@ class TFIDFStore:
         store._ids         = data["ids"]
         store._fitted      = True
 
-        log.info("TFIDFStore loaded from %s (%d docs)", directory, store.count())
+        log.info("TFIDFStore loaded from {} ({} docs)", directory, store.count())
         return store
 
     @classmethod
     def from_directory(
         cls,
         docs_dir: Union[str, Path],
-        chunk_size: int = 400,
-        chunk_overlap: int = 50,
+        chunk_size: int = 180,
+        chunk_overlap: int = 30,
         name: str = "tfidf_store",
         **kwargs: Any,
     ) -> "TFIDFStore":
@@ -214,7 +214,7 @@ class TFIDFStore:
         from src.ai_advisor.document_loader import load_documents
 
         docs_dir = Path(docs_dir)
-        log.info("TFIDFStore.from_directory: scanning %s", docs_dir)
+        log.info("TFIDFStore.from_directory: scanning {}", docs_dir)
 
         chunks = load_documents(docs_dir, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         if not chunks:

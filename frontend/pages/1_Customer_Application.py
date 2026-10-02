@@ -7,6 +7,7 @@ Organised in three sections: Demographic · Financial · Loan Details
 import streamlit as st
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from styles.theme import inject, sidebar_logo, get_logo_image, GOLD, GOLD_LT, GOLD_DK
 from styles.theme import TEXT, TEXT2, TEXT3, CARD, CARD2, BORDER, SUCCESS, SUCCESS_LT, DANGER, DANGER_LT
@@ -148,7 +149,7 @@ if st.session_state.get("last_submitted_id"):
     st.markdown("<br>", unsafe_allow_html=True)
     col_a, col_b = st.columns([1, 3])
     with col_a:
-        if st.button("New Application", use_container_width=True):
+        if st.button("New Application", width="stretch"):
             for k in ("last_submitted_id", "last_outcome", "last_prob", "last_risk_tier",
                       "last_advisory_report", "last_advisory_error"):
                 st.session_state.pop(k, None)
@@ -240,7 +241,7 @@ with st.form("loan_form", clear_on_submit=False):
 
     st.markdown("<br>", unsafe_allow_html=True)
     submitted = st.form_submit_button("Submit Application for Assessment",
-                                      use_container_width=False)
+                                      width="content")
 
 # process submission
 if submitted and loan_pct > 1.0:

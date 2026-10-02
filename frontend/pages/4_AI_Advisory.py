@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from styles.theme import (inject, sidebar_logo, get_logo_image, apply_chart_layout,
                            GOLD, GOLD_LT, GOLD_DK, SILVER,
@@ -148,7 +149,7 @@ with t1:
             height=360)
         fig.update_layout(showlegend=False,
                           xaxis=dict(zeroline=False, showgrid=True))
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
     with sb:
         top5 = list(sorted(shap_dict.items(), key=lambda x: abs(x[1]), reverse=True))[:5]
@@ -202,7 +203,7 @@ with t2:
               <div style="font-size:0.9rem;">Click the button to generate the AI advisory explanation.</div>
             </div>
             """, unsafe_allow_html=True)
-            if st.button("Generate Advisory Explanation", use_container_width=False):
+            if st.button("Generate Advisory Explanation", width="content"):
                 try:
                     with st.spinner("Generating policy-grounded explanation…"):
                         result = api_client.generate_advisory(app_id, retriever=retriever_choice)
@@ -379,7 +380,7 @@ with t3:
             data=report_text,
             file_name=f"LAPAS_Advisory_APP-{row['id']}.txt",
             mime="text/plain",
-            use_container_width=True,
+            width="stretch",
         )
 
     # PDF via fpdf2 (graceful fallback)
@@ -570,7 +571,7 @@ with t3:
                 data=pdf_bytes,
                 file_name=f"LAPAS_Advisory_APP-{row['id']}.pdf",
                 mime="application/pdf",
-                use_container_width=True,
+                width="stretch",
             )
         except ImportError:
             st.markdown(

@@ -132,9 +132,9 @@ def prepare_features(
     feature_names = list(X.columns)
 
     class_counts = np.bincount(y)
-    log.info("Feature matrix  : %d samples × %d features", *X_arr.shape)
+    log.info("Feature matrix  : {} samples × {} features", *X_arr.shape)
     log.info(
-        "Class distribution — rejected=%d (%.1f%%)  approved=%d (%.1f%%)",
+        "Class distribution — rejected={} ({:.1f}%)  approved={} ({:.1f}%)",
         class_counts[0], 100 * class_counts[0] / len(y),
         class_counts[1], 100 * class_counts[1] / len(y),
     )
@@ -167,7 +167,7 @@ def train_all(
     for algo, cfg in _ALGORITHM_CONFIG.items():
         log.info("─" * 60)
         log.info(
-            "Training  %-22s  scale=%s  class_weight=%s",
+            "Training  {:<22}  scale={}  class_weight={}",
             algo.upper(), cfg["scale_features"], cfg["class_weight"],
         )
 
@@ -179,7 +179,7 @@ def train_all(
 
         if tune:
             log.info(
-                "Tuning %s — strategy=%s  n_iter=%d  cv=%d  scoring=%s",
+                "Tuning {} — strategy={}  n_iter={}  cv={}  scoring={}",
                 algo, tune_strategy, tune_n_iter, tune_cv, tune_scoring,
             )
             clf.tune(
@@ -218,11 +218,11 @@ def save_all_models(
 
     for algo, clf in classifiers.items():
         save_path = clf.save(models_dir / algo)
-        log.info("Saved  %-22s → %s", algo, save_path)
+        log.info("Saved  {:<22} → {}", algo, save_path)
 
     ranked = compare_classifiers(eval_results)
     log.info(
-        "\nRanking by composite score:\n%s",
+        "\nRanking by composite score:\n{}",
         ranked[["model", selection_metric, "composite_rank"]].to_string(),
     )
 
@@ -237,7 +237,7 @@ def save_all_models(
     best_clf     = classifiers[best_algo]
 
     log.info(
-        "Winner: %-22s  composite_rank=%.3f  (%s=%.4f)",
+        "Winner: {:<22}  composite_rank={:.3f}  ({}={:.4f})",
         best_algo.upper(), best_rank, selection_metric, best_score,
     )
 
@@ -247,7 +247,7 @@ def save_all_models(
     comparison = ranked.copy()
     comparison["is_champion"] = comparison["algorithm"] == best_algo
     comparison.to_csv(models_dir / "model_comparison.csv", index=True, index_label="rank")
-    log.info("Saved model comparison table → %s", models_dir / "model_comparison.csv")
+    log.info("Saved model comparison table → {}", models_dir / "model_comparison.csv")
 
     # strip .joblib suffix so save() can append both .joblib and .json
     best_stem = BEST_MODEL_PATH.with_suffix("")
@@ -274,8 +274,8 @@ def save_all_models(
     })
     meta_path.write_text(json.dumps(meta, indent=2, default=str))
 
-    log.success("Best model  → %s", BEST_MODEL_PATH)
-    log.success("Load via:      LoanClassifier.load('%s')", best_stem)
+    log.success("Best model  → {}", BEST_MODEL_PATH)
+    log.success("Load via:      LoanClassifier.load('{}')", best_stem)
 
     return best_clf
 
@@ -335,14 +335,14 @@ def main() -> None:
 
     data_path = Path(args.data)
     if not data_path.exists():
-        log.error("Data file not found: %s", data_path)
+        log.error("Data file not found: {}", data_path)
         log.error("Run the feature engineering pipeline first:")
         log.error("  uv run python -m database.feature_eng")
         sys.exit(1)
 
-    log.info("Loading  %s", data_path)
+    log.info("Loading  {}", data_path)
     df = pd.read_csv(data_path)
-    log.info("Loaded   %d rows × %d columns", *df.shape)
+    log.info("Loaded   {} rows × {} columns", *df.shape)
 
     X, y, feature_names = prepare_features(df)
 
@@ -354,8 +354,8 @@ def main() -> None:
         stratify=y,
     )
     log.info(
-        "Split    %d train / %d test  "
-        "(train approval=%.1f%%  test approval=%.1f%%)",
+        "Split    {} train / {} test  "
+        "(train approval={:.1f}%  test approval={:.1f}%)",
         len(y_train), len(y_test),
         100 * y_train.mean(), 100 * y_test.mean(),
     )
@@ -382,7 +382,7 @@ def main() -> None:
     )
 
     log.success("=" * 60)
-    log.success("Training complete.  Best model: %s", best_clf.algorithm.upper())
+    log.success("Training complete.  Best model: {}", best_clf.algorithm.upper())
     log.success("=" * 60)
 
 

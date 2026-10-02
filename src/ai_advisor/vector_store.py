@@ -40,7 +40,7 @@ class VectorStore:
         persist_dir = Path(persist_directory or _DEFAULT_PERSIST_DIR)
         persist_dir.mkdir(parents=True, exist_ok=True)
 
-        log.info("VectorStore: loading encoder '%s' …", embedding_model)
+        log.info("VectorStore: loading encoder '{}' …", embedding_model)
         self._embedder = SentenceTransformer(embedding_model)
 
         self._client = chromadb.PersistentClient(path=str(persist_dir))
@@ -50,7 +50,7 @@ class VectorStore:
         try:
             self._collection = self._client.get_collection(name=collection_name)
             log.info(
-                "VectorStore '%s': loaded existing collection (%d docs)",
+                "VectorStore '{}': loaded existing collection ({} docs)",
                 collection_name, self._collection.count(),
             )
         except Exception:
@@ -58,7 +58,7 @@ class VectorStore:
                 name=collection_name,
                 metadata={"hnsw:space": "cosine"},
             )
-            log.info("VectorStore '%s': created new collection.", collection_name)
+            log.info("VectorStore '{}': created new collection.", collection_name)
 
     def _embed(self, text: str) -> List[float]:
         """Encode a single text string to a normalised embedding list."""
@@ -89,13 +89,13 @@ class VectorStore:
 
         if not new_docs:
             log.info(
-                "VectorStore '%s': all %d docs already indexed — skipping.",
+                "VectorStore '{}': all {} docs already indexed — skipping.",
                 self._collection_name, n,
             )
             return self
 
         log.info(
-            "VectorStore '%s': encoding and adding %d docs …",
+            "VectorStore '{}': encoding and adding {} docs …",
             self._collection_name, len(new_docs),
         )
         embeddings = [self._embed(doc) for doc in new_docs]
@@ -107,7 +107,7 @@ class VectorStore:
             embeddings=embeddings,
         )
         log.info(
-            "VectorStore '%s': collection now contains %d docs",
+            "VectorStore '{}': collection now contains {} docs",
             self._collection_name, self.count(),
         )
         return self
@@ -140,8 +140,8 @@ class VectorStore:
     def from_directory(
         cls,
         docs_dir: Union[str, Path],
-        chunk_size: int = 400,
-        chunk_overlap: int = 50,
+        chunk_size: int = 180,
+        chunk_overlap: int = 30,
         collection_name: str = _DEFAULT_COLLECTION,
         persist_directory: Union[str, Path, None] = None,
         embedding_model: str = _DEFAULT_EMBEDDING_MODEL,
@@ -164,12 +164,11 @@ class VectorStore:
             store._collection = store._client.create_collection(
                 name=collection_name,
                 metadata={"hnsw:space": "cosine"},
-                embedding_function=store._embedder.encode,
             )
 
         if store.count() > 0:
             log.info(
-                "VectorStore '%s': reusing %d indexed docs "
+                "VectorStore '{}': reusing {} indexed docs "
                 "(pass force_reindex=True to rebuild).",
                 collection_name, store.count(),
             )

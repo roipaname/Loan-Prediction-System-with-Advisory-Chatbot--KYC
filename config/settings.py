@@ -61,7 +61,8 @@ APP_ENV="testing"
 DB_URL=os.getenv("DATABASE_URL",f"{DB_TYPE}://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
 
 # classifier
-AVAILABLE_CLASSIFIERS=[ 'logistic_regression','naive_bayes','svm','random_forest','gradient_boosting','xgboost','lightgbm','catboost']
+# Only these four are actually implemented in src/classifier/classifier.py.
+AVAILABLE_CLASSIFIERS=['logistic_regression','naive_bayes','random_forest','xgboost']
 
 MODEL_VERSION = os.getenv('MODEL_VERSION', 'v1.0.0')
 DEFAULT_CLASSIFIER = os.getenv('DEFAULT_CLASSIFIERS', 'random_forest')
@@ -91,7 +92,10 @@ RAG_CONFIG = {
 
 # HuggingFace advisor
 HF_TOKEN=os.getenv("HF_API_TOKEN")
-HF_MODEL="mistralai/Mistral-7B-Instruct-v0.2"
+# Mistral-7B-Instruct-v0.2 is only served by one HF provider (featherless-ai),
+# which went down (503) in Oct 2026; Llama-3.1-8B is the same size class and
+# has healthy providers. Override with HF_MODEL in .env.
+HF_MODEL=os.getenv("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
 
 
 OUTPUT_RULES = {
