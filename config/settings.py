@@ -97,6 +97,13 @@ HF_TOKEN=os.getenv("HF_API_TOKEN")
 # has healthy providers. Override with HF_MODEL in .env.
 HF_MODEL=os.getenv("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
 
+# Claude advisor: used when HF_API_TOKEN is not set (or the HuggingFace call
+# fails). The anthropic SDK reads ANTHROPIC_API_KEY itself; it's exported here
+# only so the advisor can tell whether Claude is configured.
+ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY")
+# Haiku keeps API costs low; override with CLAUDE_MODEL in .env.
+CLAUDE_MODEL=os.getenv("CLAUDE_MODEL", "claude-haiku-5-5")
+
 
 OUTPUT_RULES = {
     "allow_probabilities": True,

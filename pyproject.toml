@@ -21,6 +21,8 @@ dependencies = [
     "sentence-transformers>=3.0.0",
     # HuggingFace inference
     "huggingface-hub>=0.24.0",
+    # Claude advisor (used when HF_API_TOKEN is not set)
+    "anthropic>=1.13.0",
     # transformers 5.x requires torch>=2.4 which has no macOS Intel (x86_64) wheels;
     # pin to 4.x which works with torch 2.2.x
     "transformers>=4.40.0,<5.0.0",

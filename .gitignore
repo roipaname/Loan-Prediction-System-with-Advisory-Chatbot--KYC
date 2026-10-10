@@ -166,3 +166,4 @@ backups/
 # symlinks to the iCloud-excluded *.nosync dirs (dir-only patterns above miss symlinks)
 /.venv
 /models
+!.env.example

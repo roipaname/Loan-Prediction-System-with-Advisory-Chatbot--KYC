@@ -1,7 +1,10 @@
 """
 Generates the loan advisory report: retrieves relevant policy excerpts for
-the applicant, builds a prompt, calls the HuggingFace LLM (falls back to a
-rule-based report if that fails), returns Markdown.
+the applicant, builds a prompt, calls an LLM, returns Markdown.
+
+LLM order: HuggingFace when HF_API_TOKEN is set; Claude when it isn't (or when
+the HuggingFace call fails) and ANTHROPIC_API_KEY is set; otherwise a
+rule-based report.
 
 Report sections: Decision Summary, Key Decision Factors, Recommended Action
 Plan (if rejected), Policy References, Risk Profile Summary.
@@ -16,7 +19,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from loguru import logger as log
 
-from config.settings import HF_MODEL, HF_TOKEN
+from config.settings import ANTHROPIC_API_KEY, CLAUDE_MODEL, HF_MODEL, HF_TOKEN
 
 
 def _format_currency(value: float) -> str:
@@ -235,6 +238,46 @@ def _call_huggingface(
     raise last_exc
 
 
+def _call_claude(
+    system_block: str,
+    user_block: str,
+    model: str,
+    api_key: str,
+    request_timeout: float = 120.0,
+) -> str:
+    """
+    Call Claude via the Anthropic Messages API. Thinking is always on for this
+    model, so max_tokens leaves room for it on top of the ~1300-word report,
+    and only the text blocks are returned. The SDK retries 429/5xx itself.
+    """
+    try:
+        import anthropic
+    except ImportError as exc:
+        raise ImportError(
+            "anthropic is required.  Install it with: pip install anthropic"
+        ) from exc
+
+    client = anthropic.Anthropic(api_key=api_key, timeout=request_timeout)
+    log.info("Calling Claude (Messages API): model={}", model)
+    response = client.messages.create(
+        model=model,
+        max_tokens=16_000,
+        system=system_block,
+        messages=[{"role": "user", "content": user_block}],
+        output_config={"effort": "medium"},
+    )
+    if response.stop_reason == "refusal":
+        category = response.stop_details.category if response.stop_details else None
+        raise RuntimeError(f"Claude declined the request (category: {category})")
+    text = "".join(block.text for block in response.content if block.type == "text").strip()
+    if not text:
+        raise RuntimeError(f"Claude returned no text (stop_reason: {response.stop_reason})")
+    if response.stop_reason == "max_tokens":
+        log.warning("Claude report hit max_tokens and may be truncated")
+    log.info("Claude response received ({} chars)", len(text))
+    return text
+
+
 def _build_financial_narrative(ctx: Dict[str, Any]) -> str:
     """Three paragraphs (affordability, credit, employment/housing) so the
     fallback report reads as prose, not just a bullet list and a table."""
@@ -416,7 +459,8 @@ or legal advice. For a formal credit assessment, contact a registered credit pro
 class LoanAdvisor:
     """Generates loan advisory Markdown reports using a retrieval-augmented LLM.
     vector_store must support .query() (VectorStore or TFIDFStore).
-    use_llm=False skips the LLM and always uses the rule-based report."""
+    use_llm=False skips the LLM and always uses the rule-based report.
+    Claude is used when there's no HF token, or the HuggingFace call fails."""
 
     def __init__(
         self,
@@ -424,18 +468,25 @@ class LoanAdvisor:
         hf_model: Optional[str] = None,
         hf_token: Optional[str] = None,
         use_llm: bool = True,
+        claude_model: Optional[str] = None,
+        anthropic_api_key: Optional[str] = None,
     ) -> None:
-        self.vector_store = vector_store
-        self.hf_model     = hf_model or HF_MODEL
-        self.hf_token     = hf_token or HF_TOKEN
-        self.use_llm      = use_llm
+        self.vector_store      = vector_store
+        self.hf_model          = hf_model or HF_MODEL
+        self.hf_token          = hf_token or HF_TOKEN
+        self.claude_model      = claude_model or CLAUDE_MODEL
+        self.anthropic_api_key = anthropic_api_key or ANTHROPIC_API_KEY
+        self.use_llm           = use_llm
 
         if use_llm and not self.hf_token:
-            log.warning(
-                "LoanAdvisor: HF_API_TOKEN is not set.  "
-                "LLM calls will fail.  Set HF_API_TOKEN in .env or pass hf_token= "
-                "to LoanAdvisor(), or construct with use_llm=False for the fallback report."
-            )
+            if self.anthropic_api_key:
+                log.info("LoanAdvisor: HF_API_TOKEN is not set; using Claude ({}).", self.claude_model)
+            else:
+                log.warning(
+                    "LoanAdvisor: neither HF_API_TOKEN nor ANTHROPIC_API_KEY is set.  "
+                    "Reports will use the rule-based fallback.  Set one of them in .env, "
+                    "or construct with use_llm=False to silence this warning."
+                )
 
     def advise(
         self,
@@ -447,19 +498,25 @@ class LoanAdvisor:
         if the LLM call fails."""
         retrieved_docs, retrieved_metas = self._retrieve(context["query_text"], n_docs)
 
-        if self.use_llm and self.hf_token:
-            try:
-                system_block, user_block = _build_prompt(context, retrieved_docs, retrieved_metas)
-                report = _call_huggingface(system_block, user_block, self.hf_model, self.hf_token)
+        if self.use_llm and (self.hf_token or self.anthropic_api_key):
+            system_block, user_block = _build_prompt(context, retrieved_docs, retrieved_metas)
+            report = None
+            if self.hf_token:
+                try:
+                    report = _call_huggingface(system_block, user_block, self.hf_model, self.hf_token)
+                except Exception as exc:
+                    log.error("HuggingFace API call failed ({}).", exc)
+            if report is None and self.anthropic_api_key:
+                try:
+                    report = _call_claude(system_block, user_block, self.claude_model, self.anthropic_api_key)
+                except Exception as exc:
+                    log.error("Claude API call failed ({}).", exc)
+            if report is not None:
                 # Ensure the response is well-formed markdown with a header
                 if not report.strip().startswith("#"):
                     report = "# Loan Advisory Report\n\n" + report
                 return report
-            except Exception as exc:
-                log.error(
-                    "HuggingFace API call failed ({}).  Falling back to rule-based report.",
-                    exc,
-                )
+            log.warning("All LLM calls failed.  Falling back to rule-based report.")
 
         log.info("LoanAdvisor: generating fallback (rule-based) report.")
         return _build_fallback_report(context, retrieved_docs, retrieved_metas)

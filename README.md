@@ -8,7 +8,7 @@ Honours project, University of Johannesburg. Three connected pipelines:
 
 ## Quick start
 
-Requires Python 3.10, PostgreSQL 14 and a `.env` with `DATABASE_URL` and `HF_API_TOKEN`.
+Requires Python 3.10, PostgreSQL 14 and a `.env` with `DATABASE_URL` and an LLM key: `HF_API_TOKEN`, or `ANTHROPIC_API_KEY` to use Claude (see `.env.example`).
 
 ```bash
 uv pip install -e .
