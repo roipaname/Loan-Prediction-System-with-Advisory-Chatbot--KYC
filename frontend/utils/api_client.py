@@ -11,6 +11,10 @@ from typing import Any, Dict, Optional, Tuple
 import pandas as pd
 import requests
 import streamlit as st
+from dotenv import load_dotenv
+
+# frontend never imports config.settings, so load the repo-root .env here
+load_dotenv()
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 _TIMEOUT = 15

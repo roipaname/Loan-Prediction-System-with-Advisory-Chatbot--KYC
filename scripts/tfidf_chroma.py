@@ -273,7 +273,7 @@ def _save_score_distribution(metrics: pd.DataFrame, out_dir: Path) -> Path:
         plot_labels.append(_DENSE_LABEL)
         plot_colors.append(PALETTE["chroma"])
 
-    bp = ax2.boxplot(plot_data, labels=plot_labels, patch_artist=True, notch=False,
+    bp = ax2.boxplot(plot_data, tick_labels=plot_labels, patch_artist=True, notch=False,
                      medianprops={"color": "black", "lw": 2})
     for patch, color in zip(bp["boxes"], plot_colors):
         patch.set_facecolor(color)

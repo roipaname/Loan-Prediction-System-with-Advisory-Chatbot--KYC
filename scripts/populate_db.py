@@ -45,9 +45,9 @@ def _assign_synthetic_grades(df: pd.DataFrame) -> pd.DataFrame:
 
 def _stratified_sample(df: pd.DataFrame, sample_size: int) -> pd.DataFrame:
     frac = sample_size / len(df)
-    sampled = (
-        df.groupby("loan_status", group_keys=False)
-        .apply(lambda g: g.sample(frac=frac, random_state=RANDOM_STATE))
+    # GroupBy.sample keeps the loan_status column (pandas 3's groupby.apply drops it)
+    sampled = df.groupby("loan_status", group_keys=False).sample(
+        frac=frac, random_state=RANDOM_STATE
     )
     return sampled.sample(frac=1.0, random_state=RANDOM_STATE).reset_index(drop=True)
 
